@@ -1,0 +1,14 @@
+version: '3'
+services:
+  scout:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      - SCOUT_ADDR=:8787
+      - SCOUT_TOKEN=${SCOUT_TOKEN:-}
+      - SCOUT_DB_PATH=/data/profiles.json
+      - SCOUT_LOG_LEVEL=info
+    volumes:
+      - ./data:/data
+    command: ["server"]

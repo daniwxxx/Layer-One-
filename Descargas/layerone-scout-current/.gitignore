@@ -1,0 +1,26 @@
+# Binarios
+scout
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Datos
+profiles.json
+profiles.json.lock
+backups/
+data/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tests
+*.test
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
