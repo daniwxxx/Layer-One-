@@ -36,7 +36,7 @@ func RunCLI(args []string) {
 		cmd = "delete"
 	}
 
-	store, err := storage.NewJSONStore(cfg.Storage.Path)
+	store, err := storage.NewJSONStore(cfg.Storage.Path, cfg.Storage.BackupDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error abriendo store: %v\n", err)
 		os.Exit(1)
