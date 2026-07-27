@@ -296,7 +296,7 @@ func extractMetadata(text string) (hashtags, mentions []string) {
 	for _, t := range tokens {
 		if strings.HasPrefix(t, "#") && len(t) > 1 {
 			hashtags = append(hashtags, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
-		} else if strings.HasPrefix(t, "@") && len(t) > 1 {
+		} else if strings.HasPrefix(t, "@"); len(t) > 1 {
 			mentions = append(mentions, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
 		}
 	}
@@ -340,7 +340,14 @@ func generateReport(p model.Person) string {
 	}
 	fmt.Fprintf(&b, "Confianza en intereses: %.2f\n\n", p.Signals.InterestConf)
 
-	fmt.Fprintf(&b, "## Métricas de actividad\n\n")
+	fmt.Fprintf(&b, "## Métricas de comportamiento\n\n")
+	fmt.Fprintf(&b, "- Burstiness: %.2f | Regularidad: %.2f\n", p.Signals.Burstiness, p.Signals.Regularity)
+	fmt.Fprintf(&b, "- Tasa de preguntas: %.2f | Tasa de exclamaciones: %.2f\n", p.Signals.QuestionRate, p.Signals.ExclamationRate)
+	fmt.Fprintf(&b, "- Hashtags/post: %.2f | Menciones/post: %.2f | Links/post: %.2f\n", p.Signals.HashtagRate, p.Signals.MentionRate, p.Signals.LinkRate)
+	fmt.Fprintf(&b, "- Longitud media de posts: %.2f tokens\n", p.Signals.AvgPostLength)
+	fmt.Fprintf(&b, "- Ventana activa: %.2f días | Posts/día activa: %.2f\n", p.Signals.ActiveSpanDays, p.Signals.PostsPerActiveDay)
+
+	fmt.Fprintf(&b, "\n## Métricas de actividad\n\n")
 	fmt.Fprintf(&b, "- Engagement medio: %.2f (likes+reposts por post)\n", p.Signals.Engagement)
 	fmt.Fprintf(&b, "- Engagement mediana: %.2f\n", p.Signals.EngagementMedian)
 	fmt.Fprintf(&b, "- Frecuencia de posts: %.2f posts/día\n", p.Signals.PostFrequency)
