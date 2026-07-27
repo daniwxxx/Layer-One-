@@ -7,7 +7,7 @@ import (
 
 func TestOpenJSONStore_LoadEmpty(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.json")
-	store, err := NewJSONStore(path)
+	store, err := NewJSONStore(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
