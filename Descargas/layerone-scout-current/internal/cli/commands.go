@@ -11,6 +11,7 @@ import (
 	"layerone-scout/internal/app"
 	"layerone-scout/internal/config"
 	"layerone-scout/internal/fetcher"
+	"layerone-scout/internal/model"
 	"layerone-scout/internal/server"
 	"layerone-scout/internal/storage"
 	"layerone-scout/pkg/utils"
@@ -114,9 +115,9 @@ func handleFetch(appInst *app.App, args []string, jsonOut bool) {
 	}
 	if jsonOut {
 		_ = json.NewEncoder(os.Stdout).Encode(p)
-	} else {
-		fmt.Printf("Perfil de %s (%s) importado y analizado.\n", p.Name, p.Username)
+		return
 	}
+	printPersonFull(p)
 }
 
 func handleList(appInst *app.App, jsonOut bool) {
@@ -154,15 +155,9 @@ func handleShow(appInst *app.App, args []string, jsonOut bool) {
 	}
 	if jsonOut {
 		_ = json.NewEncoder(os.Stdout).Encode(p)
-	} else {
-		fmt.Printf("ID: %s\n", p.ID)
-		fmt.Printf("Nombre: %s\n", p.Name)
-		fmt.Printf("Usuario: %s (%s)\n", p.Username, p.Platform)
-		fmt.Printf("Bio: %s\n", p.Bio)
-		fmt.Printf("Seguidores: %d, Siguiendo: %d\n", p.Followers, p.Following)
-		fmt.Printf("Posts: %d\n", len(p.Posts))
-		fmt.Printf("Último análisis: %s\n", p.LastAnalyzed.Format("2006-01-02 15:04"))
+		return
 	}
+	printPersonFull(p)
 }
 
 func handleAnalyze(appInst *app.App, args []string, jsonOut bool) {
@@ -180,9 +175,9 @@ func handleAnalyze(appInst *app.App, args []string, jsonOut bool) {
 	}
 	if jsonOut {
 		_ = json.NewEncoder(os.Stdout).Encode(p)
-	} else {
-		fmt.Printf("Análisis completado para %s (%s)\n", p.Name, p.Username)
+		return
 	}
+	printPersonFull(p)
 }
 
 func handleReport(appInst *app.App, args []string, jsonOut bool) {
@@ -276,6 +271,77 @@ func handleDoctor(store storage.Store) {
 		fmt.Printf("Base de datos cargada: %d perfiles\n", len(db.Persons))
 	}
 	fmt.Println("Diagnóstico completado.")
+}
+
+func printPersonFull(p model.Person) {
+	fmt.Println("============================================================")
+	fmt.Printf("Perfil completo: %s (@%s) [%s]\n", p.Name, p.Username, p.Platform)
+	if strings.TrimSpace(p.SourceURL) != "" {
+		fmt.Printf("Origen: %s\n", p.SourceURL)
+	}
+	if strings.TrimSpace(p.Bio) != "" {
+		fmt.Printf("Bio: %s\n", p.Bio)
+	}
+	fmt.Printf("Seguidores: %d | Siguiendo: %d\n", p.Followers, p.Following)
+	fmt.Printf("Posts: %d | Raw posts: %d\n", len(p.Posts), p.RawPostsCount)
+	fmt.Printf("Creado: %s\n", p.CreatedAt.Format("2006-01-02 15:04"))
+	fmt.Printf("Actualizado: %s\n", p.UpdatedAt.Format("2006-01-02 15:04"))
+	fmt.Printf("Último fetch: %s\n", p.LastFetched.Format("2006-01-02 15:04"))
+	fmt.Printf("Último análisis: %s\n", p.LastAnalyzed.Format("2006-01-02 15:04"))
+	fmt.Println()
+
+	fmt.Println("== Señales ==")
+	fmt.Printf("Apertura: %.2f (conf %.2f)\n", p.Signals.Openness, p.Signals.OpennessConf)
+	fmt.Printf("Responsabilidad: %.2f (conf %.2f)\n", p.Signals.Conscientiousness, p.Signals.ConscientiousnessConf)
+	fmt.Printf("Extraversión: %.2f (conf %.2f)\n", p.Signals.Extraversion, p.Signals.ExtraversionConf)
+	fmt.Printf("Amabilidad: %.2f (conf %.2f)\n", p.Signals.Agreeableness, p.Signals.AgreeablenessConf)
+	fmt.Printf("Neuroticismo: %.2f (conf %.2f)\n", p.Signals.Neuroticism, p.Signals.NeuroticismConf)
+	fmt.Printf("Sentiment: %.2f\n", p.Signals.Sentiment)
+	fmt.Printf("Engagement medio: %.2f\n", p.Signals.Engagement)
+	fmt.Printf("Engagement mediana: %.2f\n", p.Signals.EngagementMedian)
+	fmt.Printf("Frecuencia de posts: %.2f posts/día\n", p.Signals.PostFrequency)
+	fmt.Printf("Confianza intereses: %.2f\n", p.Signals.InterestConf)
+	fmt.Printf("Confianza perfil: %.2f\n", p.Confidence)
+	fmt.Printf("Perfil: %s - %s\n", p.Profile, p.Profile.Description())
+	fmt.Printf("Comunicación sugerida: %s\n", p.Profile.CommunicationStyle())
+
+	if len(p.Signals.Interests) > 0 {
+		fmt.Println()
+		fmt.Println("== Intereses detectados ==")
+		for _, interest := range p.Signals.Interests {
+			fmt.Printf("- %s\n", interest)
+		}
+	}
+	if len(p.Signals.Evidence) > 0 {
+		fmt.Println()
+		fmt.Println("== Evidencia ==")
+		for _, e := range p.Signals.Evidence {
+			fmt.Printf("- %s\n", e)
+		}
+	}
+	fmt.Println()
+	fmt.Println("== Posts ==")
+	if len(p.Posts) == 0 {
+		fmt.Println("(sin posts)")
+	} else {
+		for i, post := range p.Posts {
+			fmt.Printf("[%d] %s | likes:%d reposts:%d replies:%d\n", i+1, post.CreatedAt.Format("2006-01-02 15:04"), post.Likes, post.Reposts, post.Replies)
+			if len(post.Hashtags) > 0 {
+				fmt.Printf("    hashtags: %s\n", strings.Join(post.Hashtags, ", "))
+			}
+			if len(post.Mentions) > 0 {
+				fmt.Printf("    mentions: %s\n", strings.Join(post.Mentions, ", "))
+			}
+			if len(post.Links) > 0 {
+				fmt.Printf("    links: %s\n", strings.Join(post.Links, ", "))
+			}
+			if post.Language != "" {
+				fmt.Printf("    language: %s\n", post.Language)
+			}
+			fmt.Printf("    %s\n", post.Text)
+		}
+	}
+	fmt.Println("============================================================")
 }
 
 func printGlobalHelp() {
