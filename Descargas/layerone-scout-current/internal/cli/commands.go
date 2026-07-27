@@ -305,6 +305,14 @@ func printPersonFull(p model.Person) {
 	fmt.Printf("Confianza perfil: %.2f\n", p.Confidence)
 	fmt.Printf("Perfil: %s - %s\n", p.Profile, p.Profile.Description())
 	fmt.Printf("Comunicación sugerida: %s\n", p.Profile.CommunicationStyle())
+	fmt.Printf("Sentence count: %d\n", p.Signals.SentenceCount)
+	fmt.Printf("Media rate: %.2f | Repost rate: %.2f | Reply rate: %.2f\n", p.Signals.MediaRate, p.Signals.RepostRate, p.Signals.ReplyRate)
+	fmt.Printf("1st person: %.2f | 2nd person: %.2f | CTA: %.2f\n", p.Signals.FirstPersonRate, p.Signals.SecondPersonRate, p.Signals.CallToActionRate)
+	fmt.Printf("Temporal entropy: %.2f | Repetition: %.2f\n", p.Signals.TemporalEntropy, p.Signals.RepetitionScore)
+	fmt.Printf("Burstiness: %.2f | Regularidad: %.2f\n", p.Signals.Burstiness, p.Signals.Regularity)
+	fmt.Printf("Hashtags/post: %.2f | Menciones/post: %.2f | Links/post: %.2f\n", p.Signals.HashtagRate, p.Signals.MentionRate, p.Signals.LinkRate)
+	fmt.Printf("Longitud media de posts: %.2f tokens\n", p.Signals.AvgPostLength)
+	fmt.Printf("Ventana activa: %.2f días | Posts/día activa: %.2f\n", p.Signals.ActiveSpanDays, p.Signals.PostsPerActiveDay)
 
 	if len(p.Signals.Interests) > 0 {
 		fmt.Println()
@@ -373,4 +381,11 @@ Ejemplos:
   scout report --person usuario --out perfil.md
   scout server --addr :8080 --token secreto
 `)
+}
+
+func bioOrFallback(bio string) string {
+	if strings.TrimSpace(bio) == "" {
+		return "(sin bio textual extraída)"
+	}
+	return bio
 }
