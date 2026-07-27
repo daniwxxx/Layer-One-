@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"math"
-	"strings"
 
 	"layerone-scout/pkg/utils"
 )
