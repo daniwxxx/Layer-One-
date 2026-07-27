@@ -17,7 +17,7 @@ type Signals struct {
 	Engagement            float64   `json:"engagement"`
 	EngagementMedian      float64   `json:"engagement_median"`
 	PostFrequency         float64   `json:"post_frequency"`
-	Sentiment             float64   `json:"sentiment"` // -1..1
+	Sentiment             float64   `json:"sentiment"`
 	TokenCount            int       `json:"token_count"`
 	UniqueTokenCount      int       `json:"unique_token_count"`
 	LexicalDiversity      float64   `json:"lexical_diversity"`
@@ -26,4 +26,14 @@ type Signals struct {
 	ZipfSlope             float64   `json:"zipf_slope"`
 	ZipfFit               float64   `json:"zipf_fit"`
 	BayesConfidence       float64   `json:"bayes_confidence"`
+	Burstiness            float64   `json:"burstiness"`
+	Regularity            float64   `json:"regularity"`
+	QuestionRate          float64   `json:"question_rate"`
+	ExclamationRate       float64   `json:"exclamation_rate"`
+	HashtagRate           float64   `json:"hashtag_rate"`
+	MentionRate           float64   `json:"mention_rate"`
+	LinkRate              float64   `json:"link_rate"`
+	AvgPostLength         float64   `json:"avg_post_length"`
+	ActiveSpanDays        float64   `json:"active_span_days"`
+	PostsPerActiveDay     float64   `json:"posts_per_active_day"`
 }
