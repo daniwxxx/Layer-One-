@@ -20,7 +20,7 @@ var (
 	reHashtag         = regexp.MustCompile(`(?i)(?:^|\s)#([\p{L}\p{N}_]+)`)
 	reMention         = regexp.MustCompile(`(?i)(?:^|\s)@([\p{L}\p{N}_]+)`)
 	reURL             = regexp.MustCompile(`(?i)https?://[^\s<>"]+`)
-	reCountLoose      = regexp.MustCompile(`(?i)([0-9][0-9.,]*\s*[km]?)`)
+	reCountLoose      = regexp.MustCompile(`([0-9][0-9.,]*\s*[km]?)`)
 )
 
 func collapseWhitespace(s string) string {
