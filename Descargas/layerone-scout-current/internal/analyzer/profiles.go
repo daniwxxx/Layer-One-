@@ -9,12 +9,12 @@ import (
 
 func ClassifyProfile(s model.Signals) (model.Profile, []model.Profile, float64) {
 	scores := map[model.Profile]float64{
-		model.ProfileExplorador:  profileScoreExplorador(s),
-		model.ProfileOrganizador:  profileScoreOrganizador(s),
-		model.ProfileSocial:       profileScoreSocial(s),
-		model.ProfileAnalítico:    profileScoreAnalitico(s),
-		model.ProfileEstable:      profileScoreEstable(s),
-		model.ProfileEmocional:    profileScoreEmocional(s),
+		model.ProfileExplorador: profileScoreExplorador(s),
+		model.ProfileOrganizador: profileScoreOrganizador(s),
+		model.ProfileSocial:      profileScoreSocial(s),
+		model.ProfileAnalítico:   profileScoreAnalitico(s),
+		model.ProfileEstable:     profileScoreEstable(s),
+		model.ProfileEmocional:   profileScoreEmocional(s),
 	}
 
 	if s.BayesConfidence == 0 && s.TokenCount == 0 && len(s.Evidence) == 0 {
@@ -79,27 +79,95 @@ func ClassifyProfile(s model.Signals) (model.Profile, []model.Profile, float64) 
 }
 
 func profileScoreExplorador(s model.Signals) float64 {
-	return 0.42*s.Openness + 0.18*s.Extraversion + 0.12*(1-s.Neuroticism) + 0.12*s.LexicalDiversity + 0.08*s.ZipfFit + 0.08*s.BayesConfidence
+	return clamp01(
+		0.28*s.Openness +
+		0.12*s.Extraversion +
+		0.08*(1-s.Neuroticism) +
+		0.10*s.LexicalDiversity +
+		0.06*s.ZipfFit +
+		0.08*s.BayesConfidence +
+		0.10*s.Burstiness +
+		0.06*behaviorIntensity(s) +
+		0.06*conversationEnergy(s) +
+		0.06*s.LinkRate +
+		0.06*s.QuestionRate,
+	)
 }
 
 func profileScoreOrganizador(s model.Signals) float64 {
-	return 0.42*s.Conscientiousness + 0.18*(1-s.Neuroticism) + 0.15*(1-s.ShannonNormalized) + 0.12*s.ZipfFit + 0.13*s.BayesConfidence
+	return clamp01(
+		0.30*s.Conscientiousness +
+		0.16*s.Regularity +
+		0.10*(1-s.Burstiness) +
+		0.10*(1-s.ShannonNormalized) +
+		0.08*behaviorIntensity(s) +
+		0.08*(1-s.ExclamationRate) +
+		0.06*(1-s.QuestionRate) +
+		0.06*postLengthBalance(s) +
+		0.06*s.BayesConfidence +
+		0.06*(1-s.Neuroticism),
+	)
 }
 
 func profileScoreSocial(s model.Signals) float64 {
-	return 0.40*s.Extraversion + 0.24*s.Agreeableness + 0.12*sentimentPositive(s.Sentiment) + 0.12*engagementBoost(s) + 0.12*s.BayesConfidence
+	return clamp01(
+		0.30*s.Extraversion +
+		0.18*s.Agreeableness +
+		0.12*engagementBoost(s) +
+		0.10*s.MentionRate +
+		0.08*s.QuestionRate +
+		0.08*s.ExclamationRate +
+		0.06*sentimentPositive(s.Sentiment) +
+		0.06*conversationEnergy(s) +
+		0.04*s.Burstiness +
+		0.04*s.BayesConfidence +
+		0.04*(1-s.Neuroticism),
+	)
 }
 
 func profileScoreAnalitico(s model.Signals) float64 {
-	return 0.34*s.Openness + 0.22*s.Conscientiousness + 0.18*s.LexicalDiversity + 0.14*s.ZipfFit + 0.12*s.BayesConfidence
+	return clamp01(
+		0.22*s.Openness +
+		0.16*s.Conscientiousness +
+		0.14*s.LexicalDiversity +
+		0.12*s.ZipfFit +
+		0.10*s.LinkRate +
+		0.10*postLengthBalance(s) +
+		0.08*s.Regularity +
+		0.08*s.BayesConfidence +
+		0.05*(1-s.ExclamationRate) +
+		0.05*(1-s.QuestionRate),
+	)
 }
 
 func profileScoreEstable(s model.Signals) float64 {
-	return 0.40*(1-s.Neuroticism) + 0.22*s.Agreeableness + 0.14*sentimentPositive(s.Sentiment) + 0.12*(1-s.ShannonNormalized) + 0.12*s.BayesConfidence
+	return clamp01(
+		0.28*(1-s.Neuroticism) +
+		0.18*s.Agreeableness +
+		0.14*s.Regularity +
+		0.10*(1-s.Burstiness) +
+		0.08*sentimentPositive(s.Sentiment) +
+		0.08*(1-s.ExclamationRate) +
+		0.06*(1-s.QuestionRate) +
+		0.08*s.BayesConfidence +
+		0.05*(1-behaviorIntensity(s)) +
+		0.05*(1-s.LexicalDiversity),
+	)
 }
 
 func profileScoreEmocional(s model.Signals) float64 {
-	return 0.46*s.Neuroticism + 0.18*(1-sentimentPositive(s.Sentiment)) + 0.12*(1-s.LexicalDiversity) + 0.12*(1-s.ZipfFit) + 0.12*(1-s.BayesConfidence)
+	return clamp01(
+		0.34*s.Neuroticism +
+		0.14*s.Burstiness +
+		0.10*s.ExclamationRate +
+		0.08*s.QuestionRate +
+		0.10*(1-s.Regularity) +
+		0.08*(1-sentimentPositive(s.Sentiment)) +
+		0.08*(1-s.LexicalDiversity) +
+		0.04*(1-s.ZipfFit) +
+		0.04*conversationEnergy(s) +
+		0.10*(1-s.BayesConfidence),
+	)
 }
 
 func alternativesWithDefault(alts []model.Profile, def model.Profile) []model.Profile {
@@ -124,4 +192,17 @@ func engagementBoost(s model.Signals) float64 {
 		return 0
 	}
 	return math.Min(1, math.Log1p(s.Engagement)/5)
+}
+
+func behaviorIntensity(s model.Signals) float64 {
+	return clamp01(math.Log1p(s.PostsPerActiveDay+1) / 2.2)
+}
+
+func conversationEnergy(s model.Signals) float64 {
+	v := (s.QuestionRate + s.ExclamationRate + s.MentionRate) / 3
+	return clamp01(v)
+}
+
+func postLengthBalance(s model.Signals) float64 {
+	return clamp01(s.AvgPostLength / 35)
 }
