@@ -11,13 +11,13 @@ import (
 )
 
 type CorpusMetrics struct {
-	TokenCount        int
-	UniqueTokenCount   int
-	LexicalDiversity   float64
-	ShannonEntropy     float64
-	ShannonNormalized  float64
-	ZipfSlope          float64
-	ZipfFit            float64
+	TokenCount       int
+	UniqueTokenCount int
+	LexicalDiversity float64
+	ShannonEntropy   float64
+	ShannonNormalized float64
+	ZipfSlope        float64
+	ZipfFit          float64
 }
 
 var (
@@ -100,10 +100,6 @@ func estimateZipfSlope(freq map[string]int) float64 {
 		return pairs[i].count > pairs[j].count
 	})
 
-	n := float64(len(pairs))
-	if n < 2 {
-		return 0
-	}
 	var sumX, sumY, sumXY, sumXX float64
 	for i, p := range pairs {
 		x := math.Log(float64(i + 1))
@@ -135,7 +131,9 @@ func normalizedLexiconMap() map[string]map[string]float64 {
 }
 
 func normalizeToken(token string) string {
-	return strings.TrimSpace(utils.NormalizeText(strings.ToLower(token)))
+	token = strings.TrimSpace(utils.NormalizeText(strings.ToLower(token)))
+	token = strings.TrimLeft(token, "#@")
+	return strings.TrimSpace(token)
 }
 
 func containsLetter(token string) bool {
