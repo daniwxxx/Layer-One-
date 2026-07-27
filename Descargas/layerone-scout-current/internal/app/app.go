@@ -308,7 +308,7 @@ func generateReport(p model.Person) string {
 	fmt.Fprintf(&b, "# Perfil Psicológico de %s\n\n", p.Name)
 	fmt.Fprintf(&b, "**Usuario:** %s (%s)\n", p.Username, p.Platform)
 	fmt.Fprintf(&b, "**Origen:** %s\n", firstNonEmpty(p.SourceURL, p.SourceID))
-	fmt.Fprintf(&b, "**Bio:** %s\n", p.Bio)
+	fmt.Fprintf(&b, "**Bio:** %s\n", bioOrFallback(p.Bio))
 	fmt.Fprintf(&b, "**Seguidores:** %d | **Siguiendo:** %d\n", p.Followers, p.Following)
 	fmt.Fprintf(&b, "**Creado:** %s\n", p.CreatedAt.Format("2006-01-02 15:04"))
 	fmt.Fprintf(&b, "**Última actualización:** %s\n\n", p.UpdatedAt.Format("2006-01-02 15:04"))
@@ -321,6 +321,14 @@ func generateReport(p model.Person) string {
 	fmt.Fprintf(&b, "| Extraversión | %.2f | %.2f |\n", p.Signals.Extraversion, p.Signals.ExtraversionConf)
 	fmt.Fprintf(&b, "| Amabilidad | %.2f | %.2f |\n", p.Signals.Agreeableness, p.Signals.AgreeablenessConf)
 	fmt.Fprintf(&b, "| Neuroticismo | %.2f | %.2f |\n", p.Signals.Neuroticism, p.Signals.NeuroticismConf)
+
+	fmt.Fprintf(&b, "\n## Métricas lingüísticas\n\n")
+	fmt.Fprintf(&b, "- Tokens analizados: %d\n", p.Signals.TokenCount)
+	fmt.Fprintf(&b, "- Vocabulario único: %d\n", p.Signals.UniqueTokenCount)
+	fmt.Fprintf(&b, "- Diversidad léxica: %.2f\n", p.Signals.LexicalDiversity)
+	fmt.Fprintf(&b, "- Entropía de Shannon: %.2f (normalizada %.2f)\n", p.Signals.ShannonEntropy, p.Signals.ShannonNormalized)
+	fmt.Fprintf(&b, "- Zipf slope: %.2f | ajuste Zipf: %.2f\n", p.Signals.ZipfSlope, p.Signals.ZipfFit)
+	fmt.Fprintf(&b, "- Confianza bayesiana: %.2f\n", p.Signals.BayesConfidence)
 
 	fmt.Fprintf(&b, "\n## Intereses\n\n")
 	if len(p.Signals.Interests) == 0 {
@@ -351,6 +359,13 @@ func generateReport(p model.Person) string {
 		}
 	}
 	return b.String()
+}
+
+func bioOrFallback(bio string) string {
+	if strings.TrimSpace(bio) == "" {
+		return "(sin bio textual extraída)"
+	}
+	return bio
 }
 
 func firstNonEmpty(values ...string) string {
