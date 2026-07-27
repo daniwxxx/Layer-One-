@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -27,83 +26,88 @@ func (f *TwitterFetcher) Fetch(ctx context.Context, username string) (model.Pers
 	url := fmt.Sprintf("https://twitter.com/%s", username)
 	client := &http.Client{Timeout: f.cfg.Timeout}
 	var lastErr error
+
 	for attempt := 0; attempt <= f.cfg.MaxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return model.Person{}, err
 		}
 		req.Header.Set("User-Agent", f.cfg.UserAgent)
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+		req.Header.Set("Accept-Language", "es-ES,es;q=0.9,en;q=0.8")
+		req.Header.Set("Cache-Control", "no-cache")
+		req.Header.Set("Pragma", "no-cache")
+		req.Header.Set("Referer", "https://x.com/")
+
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-			time.Sleep(f.cfg.BackoffBase + time.Duration(attempt)*time.Second + time.Duration(attempt)*f.cfg.Jitter)
+			sleepBackoff(f.cfg.BackoffBase, f.cfg.Jitter, attempt)
 			continue
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			lastErr = fmt.Errorf("status %d", resp.StatusCode)
-			time.Sleep(f.cfg.BackoffBase + time.Duration(attempt)*time.Second + time.Duration(attempt)*f.cfg.Jitter)
-			continue
-		}
+
 		body, err := io.ReadAll(io.LimitReader(resp.Body, f.cfg.MaxBodyBytes))
+		_ = resp.Body.Close()
 		if err != nil {
 			lastErr = err
+			sleepBackoff(f.cfg.BackoffBase, f.cfg.Jitter, attempt)
 			continue
 		}
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+			sleepBackoff(f.cfg.BackoffBase, f.cfg.Jitter, attempt)
+			continue
+		}
+
 		html := string(body)
-		name := regexp.MustCompile(`<title>([^<]*)<\/title>`).FindStringSubmatch(html)
-		displayName := username
-		if len(name) > 1 {
-			displayName = strings.TrimSuffix(strings.TrimSpace(name[1]), " / X")
+		title := firstNonEmpty(metaContent(html, "twitter:title"), metaContent(html, "og:title"), titleText(html))
+		desc := cleanProfileDescription(firstNonEmpty(metaContent(html, "twitter:description"), metaContent(html, "og:description"), metaContent(html, "description")))
+		displayName := profileDisplayNameFromTitleOrMeta(title, title)
+		if displayName == "" {
+			displayName = username
 		}
-		bio := regexp.MustCompile(`<div[^>]*data-testid="UserDescription"[^>]*>(.*?)<\/div>`).FindStringSubmatch(html)
-		bioText := ""
-		if len(bio) > 1 {
-			bioText = stripTags(bio[1])
-		}
-		followers := 0
-		if m := regexp.MustCompile(`data-testid="followers"[^>]*>([^<]*)`).FindStringSubmatch(html); len(m) > 1 {
-			followers = utils.ParseAbbreviated(m[1])
-		}
-		following := 0
-		if m := regexp.MustCompile(`data-testid="following"[^>]*>([^<]*)`).FindStringSubmatch(html); len(m) > 1 {
-			following = utils.ParseAbbreviated(m[1])
-		}
-		p := model.NewPerson(displayName, username, "x", bioText, followers, following)
-		p.SourceURL = fmt.Sprintf("https://twitter.com/%s", username)
+
+		followers, following, _ := parseProfileCounts(desc)
+		p := model.NewPerson(displayName, username, "x", desc, followers, following)
+		p.SourceURL = url
 		p.SourceID = username
-		tweets := regexp.MustCompile(`<div[^>]*data-testid="tweet"[^>]*>(.*?)<\/div>`).FindAllStringSubmatch(html, -1)
-		for i, match := range tweets {
-			if i >= 20 {
-				break
-			}
-			tweetText := stripTags(match[1])
-			likes := 0
-			reposts := 0
-			if m := regexp.MustCompile(`data-testid="like"[^>]*>([^<]*)`).FindStringSubmatch(match[1]); len(m) > 1 {
-				likes = utils.ParseAbbreviated(m[1])
-			}
-			if m := regexp.MustCompile(`data-testid="retweet"[^>]*>([^<]*)`).FindStringSubmatch(match[1]); len(m) > 1 {
-				reposts = utils.ParseAbbreviated(m[1])
+
+		blocks := extractTweetBlocks(html)
+		for i, block := range blocks {
+			cand, ok := parsePostCandidate(block, username, i)
+			if !ok {
+				continue
 			}
 			post := model.Post{
-				ID:        fmt.Sprintf("%s-%d", username, time.Now().UnixNano()+int64(i)),
-				Text:      tweetText,
-				Likes:     likes,
-				Reposts:   reposts,
-				CreatedAt: time.Now().Add(-time.Duration(i) * time.Hour),
+				ID:        cand.ID,
+				Text:      cand.Text,
+				Likes:     cand.Likes,
+				Reposts:   cand.Reposts,
+				Replies:   cand.Replies,
+				CreatedAt: cand.CreatedAt,
+				Hashtags:  cand.Hashtags,
+				Mentions:  cand.Mentions,
+				Links:     cand.Links,
+				Media:     cand.Media,
+				Language:  cand.Language,
 			}
-			post.Hashtags, post.Mentions = extractMetadata(post.Text)
 			p.Posts = append(p.Posts, post)
 		}
+
 		p.RawPostsCount = len(p.Posts)
 		p.LastFetched = time.Now()
+		if p.Name == "" {
+			p.Name = username
+		}
 		return p, nil
 	}
+
 	return model.Person{}, fmt.Errorf("falló después de %d intentos: %w", f.cfg.MaxRetries, lastErr)
 }
 
-func stripTags(html string) string {
-	re := regexp.MustCompile(`<[^>]+>`)
-	return strings.TrimSpace(re.ReplaceAllString(html, " "))
+func sleepBackoff(base, jitter time.Duration, attempt int) {
+	delay := base + time.Duration(attempt)*time.Second + time.Duration(attempt)*jitter
+	if delay > 0 {
+		time.Sleep(delay)
+	}
 }
