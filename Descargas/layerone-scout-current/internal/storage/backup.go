@@ -15,7 +15,7 @@ func (s *JSONStore) backupLocked() error {
 	if err != nil || info.Size() == 0 {
 		return nil
 	}
-	backupDir := s.backupDir()
+	backupDir := s.effectiveBackupDir()
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func (s *JSONStore) backupLocked() error {
 }
 
 func (s *JSONStore) restoreFromBackup() (*Database, error) {
-	backupDir := s.backupDir()
+	backupDir := s.effectiveBackupDir()
 	entries, err := os.ReadDir(backupDir)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (s *JSONStore) restoreFromBackup() (*Database, error) {
 	return &db, nil
 }
 
-func (s *JSONStore) backupDir() string {
+func (s *JSONStore) effectiveBackupDir() string {
 	if s.backupDir != "" {
 		return s.backupDir
 	}
