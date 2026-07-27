@@ -16,24 +16,33 @@ func AnalyzePerson(p model.Person) model.Person {
 		texts = append(texts, post.Text)
 	}
 
+	metrics, _ := AnalyzeCorpus(texts)
 	scores, conf := ComputeBigFive(texts)
 	s := model.Signals{
-		Openness:              scores["openness"],
-		Conscientiousness:     scores["conscientiousness"],
-		Extraversion:          scores["extraversion"],
-		Agreeableness:         scores["agreeableness"],
-		Neuroticism:           scores["neuroticism"],
-		OpennessConf:          conf["openness"],
+		Openness:             scores["openness"],
+		Conscientiousness:    scores["conscientiousness"],
+		Extraversion:         scores["extraversion"],
+		Agreeableness:        scores["agreeableness"],
+		Neuroticism:          scores["neuroticism"],
+		OpennessConf:         conf["openness"],
 		ConscientiousnessConf: conf["conscientiousness"],
-		ExtraversionConf:      conf["extraversion"],
-		AgreeablenessConf:     conf["agreeableness"],
-		NeuroticismConf:       conf["neuroticism"],
-		Sentiment:             AnalyzeSentiment(texts),
+		ExtraversionConf:     conf["extraversion"],
+		AgreeablenessConf:    conf["agreeableness"],
+		NeuroticismConf:      conf["neuroticism"],
+		Sentiment:            AnalyzeSentiment(texts),
+		TokenCount:           metrics.TokenCount,
+		UniqueTokenCount:     metrics.UniqueTokenCount,
+		LexicalDiversity:     metrics.LexicalDiversity,
+		ShannonEntropy:       metrics.ShannonEntropy,
+		ShannonNormalized:    metrics.ShannonNormalized,
+		ZipfSlope:            metrics.ZipfSlope,
+		ZipfFit:              metrics.ZipfFit,
 	}
 
 	interests, interestConf := ExtractInterests(texts)
 	s.Interests = interests
 	s.InterestConf = interestConf
+	s.BayesConfidence = averageConfidence(conf)
 
 	if len(p.Posts) > 0 {
 		engagements := make([]int, 0, len(p.Posts))
@@ -75,12 +84,23 @@ func AnalyzePerson(p model.Person) model.Person {
 	return p
 }
 
+func averageConfidence(conf map[string]float64) float64 {
+	if len(conf) == 0 {
+		return 0
+	}
+	total := 0.0
+	for _, v := range conf {
+		total += v
+	}
+	return total / float64(len(conf))
+}
+
 func extractEvidence(texts []string) []string {
 	terms := []string{"creativo", "ordenado", "social", "innovador", "responsable", "empático", "analítico"}
 	var ev []string
 	for _, text := range texts {
 		low := strings.ToLower(text)
-		if len(low) <= 10 {
+		if len(strings.TrimSpace(low)) <= 10 {
 			continue
 		}
 		for _, term := range terms {
@@ -93,8 +113,14 @@ func extractEvidence(texts []string) []string {
 			break
 		}
 	}
-	if len(ev) == 0 && len(texts) > 0 {
-		ev = append(ev, utils.Truncate(texts[0], 80))
+	if len(ev) == 0 {
+		for _, text := range texts {
+			clean := strings.TrimSpace(text)
+			if len(clean) > 12 {
+				ev = append(ev, utils.Truncate(clean, 80))
+				break
+			}
+		}
 	}
 	return ev
 }
