@@ -3,15 +3,15 @@ package model
 type Profile string
 
 const (
-	ProfileExplorador   Profile = "explorador"
-	ProfileOrganizador  Profile = "organizador"
-	ProfileSocial       Profile = "social"
-	ProfileAnalítico    Profile = "analítico"
-	ProfileEstable      Profile = "estable"
-	ProfileEmocional    Profile = "emocional"
-	ProfileMixto        Profile = "mixto"
+	ProfileExplorador    Profile = "explorador"
+	ProfileOrganizador   Profile = "organizador"
+	ProfileSocial        Profile = "social"
+	ProfileAnalítico     Profile = "analítico"
+	ProfileEstable       Profile = "estable"
+	ProfileEmocional     Profile = "emocional"
+	ProfileMixto         Profile = "mixto"
 	ProfileIndeterminado Profile = "indeterminado"
-	ProfileUnknown      Profile = "desconocido"
+	ProfileUnknown       Profile = "desconocido"
 )
 
 func (p Profile) Description() string {
@@ -30,6 +30,10 @@ func (p Profile) Description() string {
 		return "Persona sensible, ansiosa y con cambios de humor."
 	case ProfileMixto:
 		return "Persona con rasgos variados, sin un perfil claramente dominante."
+	case ProfileIndeterminado:
+		return "No hay señales suficientes para clasificar con confianza."
+	case ProfileUnknown:
+		return "Perfil sin analizar todavía o sin datos suficientes."
 	default:
 		return "Perfil no clasificado."
 	}
@@ -49,6 +53,10 @@ func (p Profile) CommunicationStyle() string {
 		return "Mensajes tranquilos, seguros y prácticos."
 	case ProfileEmocional:
 		return "Mensajes empáticos, comprensivos y que validen sus emociones."
+	case ProfileMixto:
+		return "Mensajes equilibrados, adaptables y con varios ángulos."
+	case ProfileIndeterminado:
+		return "Mensajes neutrales, breves y sin asumir demasiado."
 	default:
 		return "Mensajes equilibrados y respetuosos."
 	}
