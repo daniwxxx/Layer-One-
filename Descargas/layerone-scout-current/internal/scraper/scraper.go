@@ -198,6 +198,18 @@ func fallbackXProfile(username string) model.Person {
 	return p
 }
 
+func extractMetadata(text string) (hashtags, mentions []string) {
+	tokens := strings.Fields(text)
+	for _, t := range tokens {
+		if strings.HasPrefix(t, "#") && len(t) > 1 {
+			hashtags = append(hashtags, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
+		} else if strings.HasPrefix(t, "@") && len(t) > 1 {
+			mentions = append(mentions, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
+		}
+	}
+	return
+}
+
 func stripTags(html string) string {
 	re := regexp.MustCompile(`<[^>]+>`)
 	return strings.TrimSpace(re.ReplaceAllString(html, " "))
