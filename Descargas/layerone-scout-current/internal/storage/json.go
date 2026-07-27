@@ -14,12 +14,13 @@ import (
 const currentSchemaVersion = 1
 
 type JSONStore struct {
-	mu   sync.Mutex
-	path string
+	mu        sync.Mutex
+	path      string
+	backupDir string
 }
 
-func NewJSONStore(path string) (*JSONStore, error) {
-	return &JSONStore{path: path}, nil
+func NewJSONStore(path, backupDir string) (*JSONStore, error) {
+	return &JSONStore{path: path, backupDir: backupDir}, nil
 }
 
 func (s *JSONStore) Load() (*Database, error) {
@@ -41,7 +42,6 @@ func (s *JSONStore) loadLocked() (*Database, error) {
 	}
 	var db Database
 	if err := json.Unmarshal(b, &db); err != nil {
-		// Intentar restaurar desde backup
 		backup, err := s.restoreFromBackup()
 		if err == nil {
 			return backup, nil
