@@ -21,8 +21,8 @@ var sentimentPhraseLexicon = map[string]float64{
 	"muy malo": -0.8,
 	"buen trabajo": 0.7,
 	"mal trabajo": -0.7,
-	"qué bien": 0.6,
-	"qué mal": -0.6,
+	"que bien": 0.6,
+	"que mal": -0.6,
 }
 
 var sentimentTokenLexicon = map[string]float64{
@@ -31,11 +31,11 @@ var sentimentTokenLexicon = map[string]float64{
 	"triste": -0.7, "deprimido": -0.8, "enojado": -0.6, "frustrado": -0.7,
 	"horrible": -0.8, "malo": -0.5, "terrible": -0.8,
 	"ansioso": -0.6, "preocupado": -0.5, "tranquilo": 0.4, "sereno": 0.5,
-	"amor": 0.8, "odio": -0.9, "gracias": 0.4, "perdón": -0.2,
+	"amor": 0.8, "odio": -0.9, "gracias": 0.4, "perdon": -0.2,
 }
 
 var negators = map[string]struct{}{
-	"no": {}, "nunca": {}, "jamas": {}, "jamás": {}, "sin": {}, "ni": {},
+	"no": {}, "nunca": {}, "jamas": {}, "sin": {}, "ni": {},
 }
 
 func AnalyzeSentimentPlus(texts []string) float64 {
