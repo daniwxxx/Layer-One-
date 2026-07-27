@@ -17,6 +17,7 @@ func AnalyzeSentiment(texts []string) float64 {
 	for _, text := range texts {
 		tokens := utils.Tokenize(text)
 		for _, token := range tokens {
+			token = normalizeToken(token)
 			if val, ok := sentimentLexicon[token]; ok {
 				total += val
 				count++
