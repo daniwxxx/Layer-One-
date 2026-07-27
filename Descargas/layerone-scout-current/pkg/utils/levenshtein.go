@@ -1,7 +1,9 @@
 package utils
 
 func Levenshtein(a, b string) int {
-	la, lb := len(a), len(b)
+	ra := []rune(a)
+	rb := []rune(b)
+	la, lb := len(ra), len(rb)
 	if la == 0 {
 		return lb
 	}
@@ -17,7 +19,7 @@ func Levenshtein(a, b string) int {
 		curr[0] = i
 		for j := 1; j <= lb; j++ {
 			cost := 0
-			if a[i-1] != b[j-1] {
+			if ra[i-1] != rb[j-1] {
 				cost = 1
 			}
 			curr[j] = min(prev[j]+1, curr[j-1]+1, prev[j-1]+cost)
