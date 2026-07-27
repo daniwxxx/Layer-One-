@@ -9,18 +9,18 @@ import (
 	"layerone-scout/pkg/utils"
 )
 
-var (
-	firstPersonTokens = map[string]struct{}{
-		"yo": {}, "me": {}, "mi": {}, "mio": {}, "mía": {}, "mio": {}, "nos": {}, "nosotros": {}, "nuestra": {}, "nuestro": {},
-	}
-	secondPersonTokens = map[string]struct{}{
-		"tu": {}, "tú": {}, "te": {}, "ti": {}, "usted": {}, "ustedes": {}, "vos": {}, "vosotros": {}, "ustedes": {}, "les": {},
-	}
-	ctaPhrases = []string{
-		"comenta", "comentá", "opina", "opiné", "seguime", "sígueme", "sigue", "compartí", "comparte", "reenvía", "manda dm",
-		"envía dm", "link in bio", "link en bio", "haz clic", "hacé clic", "join", "subscribe", "suscríbete", "únete",
-	}
-)
+var firstPersonTokens = map[string]struct{}{
+	"yo": {}, "me": {}, "mi": {}, "mio": {}, "mía": {}, "nos": {}, "nosotros": {}, "nuestra": {}, "nuestro": {},
+}
+
+var secondPersonTokens = map[string]struct{}{
+	"tu": {}, "tú": {}, "te": {}, "ti": {}, "usted": {}, "ustedes": {}, "vos": {}, "vosotros": {}, "les": {},
+}
+
+var ctaPhrases = []string{
+	"comenta", "comentá", "opina", "seguime", "sígueme", "sigue", "compartí", "comparte", "reenvía", "manda dm",
+	"envía dm", "link in bio", "link en bio", "haz clic", "hacé clic", "join", "subscribe", "suscríbete", "únete",
+}
 
 type BehaviorMetricsPlus struct {
 	Burstiness        float64
@@ -45,11 +45,10 @@ type BehaviorMetricsPlus struct {
 }
 
 func AnalyzeBehaviorPlus(posts []model.Post, texts []string) BehaviorMetricsPlus {
-	m := BehaviorMetricsPlus{}
 	if len(posts) == 0 && len(texts) == 0 {
-		return m
+		return BehaviorMetricsPlus{}
 	}
-
+	m := BehaviorMetricsPlus{}
 	m.AvgPostLength = averagePostLengthPlus(texts)
 	m.QuestionRate, m.ExclamationRate = punctuationRatesPlus(texts)
 	m.HashtagRate, m.MentionRate, m.LinkRate = entityRatesPlus(posts)
@@ -80,8 +79,7 @@ func punctuationRatesPlus(texts []string) (questionRate, exclamationRate float64
 	if len(texts) == 0 {
 		return 0, 0
 	}
-	questions := 0
-	exclaims := 0
+	questions, exclaims := 0, 0
 	for _, text := range texts {
 		if strings.Contains(text, "?") {
 			questions++
@@ -90,16 +88,15 @@ func punctuationRatesPlus(texts []string) (questionRate, exclamationRate float64
 			exclaims++
 		}
 	}
-	return float64(questions) / float64(len(texts)), float64(exclaims) / float64(len(texts))
+	den := float64(len(texts))
+	return float64(questions) / den, float64(exclaims) / den
 }
 
 func entityRatesPlus(posts []model.Post) (hashtagRate, mentionRate, linkRate float64) {
 	if len(posts) == 0 {
 		return 0, 0, 0
 	}
-	h := 0
-	m := 0
-	l := 0
+	h, m, l := 0, 0, 0
 	for _, post := range posts {
 		h += len(post.Hashtags)
 		m += len(post.Mentions)
@@ -113,34 +110,25 @@ func activitySpanPlus(posts []model.Post) (spanDays, postsPerDay float64) {
 	if len(posts) == 0 {
 		return 0, 0
 	}
-	ordered := make([]model.Post, len(posts))
-	copy(ordered, posts)
+	ordered := append([]model.Post(nil), posts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].CreatedAt.Before(ordered[j].CreatedAt) })
-	first := ordered[0].CreatedAt
-	last := ordered[len(ordered)-1].CreatedAt
-	spanDays = last.Sub(first).Hours() / 24
+	spanDays = ordered[len(ordered)-1].CreatedAt.Sub(ordered[0].CreatedAt).Hours() / 24
 	if spanDays <= 0 {
-		spanDays = 0
-		postsPerDay = float64(len(posts))
-		return
+		return 0, float64(len(posts))
 	}
-	postsPerDay = float64(len(posts)) / spanDays
-	return
+	return spanDays, float64(len(posts)) / spanDays
 }
 
 func postingBurstinessPlus(posts []model.Post) (burstiness, regularity float64) {
 	if len(posts) < 2 {
 		return 0, 1
 	}
-	ordered := make([]model.Post, len(posts))
-	copy(ordered, posts)
+	ordered := append([]model.Post(nil), posts...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].CreatedAt.Before(ordered[j].CreatedAt) })
-
 	intervals := make([]float64, 0, len(ordered)-1)
 	for i := 1; i < len(ordered); i++ {
-		hours := ordered[i].CreatedAt.Sub(ordered[i-1].CreatedAt).Hours()
-		if hours > 0 {
-			intervals = append(intervals, hours)
+		if h := ordered[i].CreatedAt.Sub(ordered[i-1].CreatedAt).Hours(); h > 0 {
+			intervals = append(intervals, h)
 		}
 	}
 	if len(intervals) == 0 {
@@ -156,8 +144,7 @@ func postingBurstinessPlus(posts []model.Post) (burstiness, regularity float64) 
 		d := v - mean
 		variance += d * d
 	}
-	variance /= float64(len(intervals))
-	sd := math.Sqrt(variance)
+	sd := math.Sqrt(variance / float64(len(intervals)))
 	cv := 0.0
 	if mean > 0 {
 		cv = sd / mean
@@ -196,8 +183,7 @@ func activityActionRates(posts []model.Post) (repostRate, replyRate float64) {
 	if len(posts) == 0 {
 		return 0, 0
 	}
-	reposts := 0
-	replies := 0
+	reposts, replies := 0, 0
 	for _, post := range posts {
 		reposts += post.Reposts
 		replies += post.Replies
@@ -207,11 +193,11 @@ func activityActionRates(posts []model.Post) (repostRate, replyRate float64) {
 }
 
 func pronounRates(texts []string) (firstPersonRate, secondPersonRate float64) {
-	var totalTokens float64
-	var first, second float64
+	totalTokens := 0
+	first, second := 0, 0
 	for _, text := range texts {
 		tokens := utils.Tokenize(text)
-		totalTokens += float64(len(tokens))
+		totalTokens += len(tokens)
 		for _, token := range tokens {
 			t := normalizeToken(token)
 			if _, ok := firstPersonTokens[t]; ok {
@@ -225,7 +211,8 @@ func pronounRates(texts []string) (firstPersonRate, secondPersonRate float64) {
 	if totalTokens == 0 {
 		return 0, 0
 	}
-	return first / totalTokens, second / totalTokens
+	den := float64(totalTokens)
+	return float64(first) / den, float64(second) / den
 }
 
 func callToActionRate(texts []string) float64 {
@@ -251,10 +238,9 @@ func temporalEntropy(posts []model.Post) float64 {
 	}
 	buckets := make(map[int]int)
 	for _, post := range posts {
-		if post.CreatedAt.IsZero() {
-			continue
+		if !post.CreatedAt.IsZero() {
+			buckets[post.CreatedAt.UTC().Hour()]++
 		}
-		buckets[post.CreatedAt.UTC().Hour()]++
 	}
 	if len(buckets) < 2 {
 		return 0
@@ -262,9 +248,6 @@ func temporalEntropy(posts []model.Post) float64 {
 	total := 0
 	for _, n := range buckets {
 		total += n
-	}
-	if total == 0 {
-		return 0
 	}
 	entropy := 0.0
 	for _, n := range buckets {
@@ -278,31 +261,28 @@ func repetitionScore(texts []string) float64 {
 	if len(texts) < 2 {
 		return 0
 	}
-	total := 0.0
-	pairs := 0
+	sum, pairs := 0.0, 0
 	for i := 1; i < len(texts); i++ {
 		a := tokenSet(texts[i-1])
 		b := tokenSet(texts[i])
 		if len(a) == 0 || len(b) == 0 {
 			continue
 		}
-		total += jaccard(a, b)
+		sum += jaccard(a, b)
 		pairs++
 	}
 	if pairs == 0 {
 		return 0
 	}
-	return clamp01(total / float64(pairs))
+	return clamp01(sum / float64(pairs))
 }
 
 func tokenSet(text string) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, token := range utils.Tokenize(text) {
-		norm := normalizeToken(token)
-		if norm == "" {
-			continue
+		if norm := normalizeToken(token); norm != "" {
+			set[norm] = struct{}{}
 		}
-		set[norm] = struct{}{}
 	}
 	return set
 }
