@@ -1,6 +1,9 @@
 package fetcher
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseCountLoose(t *testing.T) {
 	cases := map[string]int{
@@ -34,9 +37,7 @@ func TestParsePostCandidate(t *testing.T) {
 	if !ok {
 		t.Fatal("expected candidate to parse")
 	}
-	if cand.Text == "" || cand.Text == "Hello #go @openai https://example.com" {
-		// The extracted text should be non-empty and preserve the content.
-	} else {
+	if !strings.Contains(cand.Text, "Hello") || !strings.Contains(cand.Text, "#go") {
 		t.Fatalf("unexpected text: %q", cand.Text)
 	}
 	if cand.Likes != 12 || cand.Reposts != 3 || cand.Replies != 1 {
