@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"layerone-scout/internal/model"
@@ -17,19 +18,19 @@ type Fetcher interface {
 var fetchers = map[string]Fetcher{}
 
 func Register(f Fetcher) {
-	fetchers[f.Platform()] = f
+	fetchers[strings.ToLower(f.Platform())] = f
 }
 
 func FetchByPlatform(ctx context.Context, platform, username string) (model.Person, error) {
-	f, ok := fetchers[platform]
+	f, ok := fetchers[strings.ToLower(strings.TrimSpace(platform))]
 	if !ok {
 		return model.Person{}, fmt.Errorf("plataforma no soportada: %s", platform)
 	}
 	return f.Fetch(ctx, username)
 }
 
-func Init() {
-	cfg := DefaultConfig()
+func Init(cfg Config) {
+	fetchers = map[string]Fetcher{}
 	Register(NewInstagramFetcher(cfg))
 	Register(NewTwitterFetcher(cfg))
 	if os.Getenv("SCOUT_MOCK") == "1" {
