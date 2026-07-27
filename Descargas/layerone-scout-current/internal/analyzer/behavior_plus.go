@@ -10,16 +10,16 @@ import (
 )
 
 var firstPersonTokens = map[string]struct{}{
-	"yo": {}, "me": {}, "mi": {}, "mio": {}, "mía": {}, "nos": {}, "nosotros": {}, "nuestra": {}, "nuestro": {},
+	"yo": {}, "me": {}, "mi": {}, "mio": {}, "mia": {}, "nos": {}, "nosotros": {}, "nuestra": {}, "nuestro": {},
 }
 
 var secondPersonTokens = map[string]struct{}{
-	"tu": {}, "tú": {}, "te": {}, "ti": {}, "usted": {}, "ustedes": {}, "vos": {}, "vosotros": {}, "les": {},
+	"tu": {}, "te": {}, "ti": {}, "usted": {}, "ustedes": {}, "vos": {}, "vosotros": {}, "les": {},
 }
 
 var ctaPhrases = []string{
-	"comenta", "comentá", "opina", "seguime", "sígueme", "sigue", "compartí", "comparte", "reenvía", "manda dm",
-	"envía dm", "link in bio", "link en bio", "haz clic", "hacé clic", "join", "subscribe", "suscríbete", "únete",
+	"comenta", "opina", "seguime", "sigueme", "sigue", "comparti", "reenvia", "manda dm",
+	"envia dm", "link in bio", "link en bio", "haz clic", "join", "subscribe", "suscribete", "unete",
 }
 
 type BehaviorMetricsPlus struct {
