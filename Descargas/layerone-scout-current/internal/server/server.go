@@ -14,6 +14,7 @@ import (
 
 	"layerone-scout/internal/app"
 	"layerone-scout/internal/config"
+	"layerone-scout/internal/fetcher"
 	"layerone-scout/internal/model"
 )
 
@@ -27,6 +28,8 @@ type Options struct {
 }
 
 func Run(cfg config.Config, app *app.App) error {
+	fetcher.Init(cfg.FetcherRuntime())
+
 	opts := Options{
 		Addr:         cfg.Server.Addr,
 		Token:        cfg.Server.Token,
@@ -36,15 +39,17 @@ func Run(cfg config.Config, app *app.App) error {
 		IdleTimeout:  parseDuration(cfg.Server.IdleTimeout, 30*time.Second),
 	}
 
-	mux := http.NewServeMux()
+	publicMux := http.NewServeMux()
+	apiMux := http.NewServeMux()
 	rl := newRateLimiter(opts.RateLimit)
-	handler := withLogging(withRateLimit(rl, withAuth(opts.Token, mux)))
+	apiHandler := withLogging(withRateLimit(rl, withAuth(opts.Token, apiMux)))
 
-	mux.HandleFunc("/", dashboard)
-	mux.HandleFunc("/healthz", healthz)
-	mux.HandleFunc("/readyz", readyz)
+	publicMux.HandleFunc("/", dashboard)
+	publicMux.HandleFunc("/healthz", healthz)
+	publicMux.HandleFunc("/readyz", readyz)
+	publicMux.Handle("/api/", apiHandler)
 
-	mux.HandleFunc("/api/persons", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/api/persons", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			list, err := app.ListPersons()
@@ -102,7 +107,7 @@ func Run(cfg config.Config, app *app.App) error {
 		}
 	})
 
-	mux.HandleFunc("/api/persons/fetch", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/api/persons/fetch", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "método no soportado", http.StatusMethodNotAllowed)
 			return
@@ -125,7 +130,7 @@ func Run(cfg config.Config, app *app.App) error {
 		writeJSON(w, p)
 	})
 
-	mux.HandleFunc("/api/persons/analyze", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/api/persons/analyze", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "método no soportado", http.StatusMethodNotAllowed)
 			return
@@ -143,7 +148,7 @@ func Run(cfg config.Config, app *app.App) error {
 		writeJSON(w, p)
 	})
 
-	mux.HandleFunc("/api/persons/report", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/api/persons/report", func(w http.ResponseWriter, r *http.Request) {
 		personID := r.URL.Query().Get("person")
 		if strings.TrimSpace(personID) == "" {
 			http.Error(w, "falta person", http.StatusBadRequest)
@@ -160,7 +165,7 @@ func Run(cfg config.Config, app *app.App) error {
 
 	srv := &http.Server{
 		Addr:              opts.Addr,
-		Handler:           handler,
+		Handler:           publicMux,
 		ReadTimeout:       opts.ReadTimeout,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      opts.WriteTimeout,
