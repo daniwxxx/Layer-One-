@@ -15,9 +15,8 @@ func Truncate(s string, max int) string {
 
 func Sanitize(s string) string {
 	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "
-", " ")
-	s = strings.ReplaceAll(s, "", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
 	return strings.Join(strings.Fields(s), " ")
 }
 
