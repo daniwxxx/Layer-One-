@@ -296,7 +296,7 @@ func extractMetadata(text string) (hashtags, mentions []string) {
 	for _, t := range tokens {
 		if strings.HasPrefix(t, "#") && len(t) > 1 {
 			hashtags = append(hashtags, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
-		} else if strings.HasPrefix(t, "@"); len(t) > 1 {
+		} else if strings.HasPrefix(t, "@") && len(t) > 1 {
 			mentions = append(mentions, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
 		}
 	}
