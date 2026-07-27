@@ -36,4 +36,13 @@ type Signals struct {
 	AvgPostLength         float64   `json:"avg_post_length"`
 	ActiveSpanDays        float64   `json:"active_span_days"`
 	PostsPerActiveDay     float64   `json:"posts_per_active_day"`
+	SentenceCount         int       `json:"sentence_count"`
+	MediaRate             float64   `json:"media_rate"`
+	RepostRate            float64   `json:"repost_rate"`
+	ReplyRate             float64   `json:"reply_rate"`
+	FirstPersonRate       float64   `json:"first_person_rate"`
+	SecondPersonRate      float64   `json:"second_person_rate"`
+	CallToActionRate      float64   `json:"call_to_action_rate"`
+	TemporalEntropy       float64   `json:"temporal_entropy"`
+	RepetitionScore       float64   `json:"repetition_score"`
 }
