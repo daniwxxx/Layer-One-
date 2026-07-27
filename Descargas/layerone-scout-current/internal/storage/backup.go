@@ -69,6 +69,9 @@ func (s *JSONStore) restoreFromBackup() (*Database, error) {
 }
 
 func (s *JSONStore) backupDir() string {
+	if s.backupDir != "" {
+		return s.backupDir
+	}
 	if s.path == "" {
 		return "backups"
 	}
