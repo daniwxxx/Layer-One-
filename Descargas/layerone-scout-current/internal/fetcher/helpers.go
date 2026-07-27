@@ -122,11 +122,15 @@ func tweetCountsFromBlock(block string) (likes, reposts, replies int) {
 func attributeValues(block string, attrs ...string) []string {
 	vals := make([]string, 0, len(attrs))
 	for _, attr := range attrs {
-		pattern := fmt.Sprintf(`(?i)%s\s*=\s*(["'])(.*?)\1`, regexp.QuoteMeta(attr))
-		re := regexp.MustCompile(pattern)
-		for _, m := range re.FindAllStringSubmatch(block, -1) {
-			if len(m) > 2 {
-				vals = append(vals, collapseWhitespace(m[2]))
+		for _, pattern := range []string{
+			fmt.Sprintf(`(?i)%s\s*=\s*"([^"]*)"`, regexp.QuoteMeta(attr)),
+			fmt.Sprintf(`(?i)%s\s*=\s*'([^']*)'`, regexp.QuoteMeta(attr)),
+		} {
+			re := regexp.MustCompile(pattern)
+			for _, m := range re.FindAllStringSubmatch(block, -1) {
+				if len(m) > 1 {
+					vals = append(vals, collapseWhitespace(m[1]))
+				}
 			}
 		}
 	}
