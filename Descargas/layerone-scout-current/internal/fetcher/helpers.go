@@ -21,7 +21,6 @@ var (
 	reMention         = regexp.MustCompile(`(?i)(?:^|\s)@([\p{L}\p{N}_]+)`)
 	reURL             = regexp.MustCompile(`(?i)https?://[^\s<>"]+`)
 	reCountLoose      = regexp.MustCompile(`(?i)([0-9][0-9.,]*\s*[km]?)`)
-	reNumberSeparator = regexp.MustCompile(`[.,\s]`)
 )
 
 func collapseWhitespace(s string) string {
@@ -106,8 +105,8 @@ func tweetCreatedAtFromBlock(block string) time.Time {
 func tweetCountsFromBlock(block string) (likes, reposts, replies int) {
 	plain := collapseWhitespace(stripTags(block))
 	likes = countNearLabels(plain, "like", "likes", "me gusta", "favs")
-	reposts = countNearLabels(plain, "repost", "reposts", "retweet", "retweets", "reposts", "rt")
-	replies = countNearLabels(plain, "reply", "replies", "respuesta", "respuestas", "replies")
+	reposts = countNearLabels(plain, "repost", "reposts", "retweet", "retweets", "rt")
+	replies = countNearLabels(plain, "reply", "replies", "respuesta", "respuestas")
 	if likes == 0 {
 		likes = countNearLabels(block, "like", "likes", "me gusta", "favs")
 	}
@@ -124,8 +123,8 @@ func countNearLabels(s string, labels ...string) int {
 	for _, label := range labels {
 		label = regexp.QuoteMeta(label)
 		patterns := []string{
-			fmt.Sprintf(`(?i)(%s)\s*[:\-]??\s*%s`, label, reCountLoose.String()),
-			fmt.Sprintf(`(?i)%s\s*[:\-]??\s*(%s)`, label, reCountLoose.String()),
+			fmt.Sprintf(`(?i)(%s)\s*[:\-]?\s*%s`, label, reCountLoose.String()),
+			fmt.Sprintf(`(?i)%s\s*[:\-]?\s*(%s)`, label, reCountLoose.String()),
 		}
 		for _, pattern := range patterns {
 			re := regexp.MustCompile(pattern)
@@ -150,14 +149,13 @@ func parseCountLoose(s string) int {
 		mult = 1_000_000
 		s = strings.TrimSuffix(s, "m")
 	}
-	s = reNumberSeparator.ReplaceAllString(s, "")
-	if strings.Contains(s, ".") {
-		if f, err := strconv.ParseFloat(s, 64); err == nil {
-			return int(f * mult)
+	s = strings.ReplaceAll(s, " ", "")
+	s = strings.ReplaceAll(s, ",", ".")
+	if strings.Count(s, ".") == 1 {
+		parts := strings.SplitN(s, ".", 2)
+		if len(parts[1]) == 3 {
+			s = parts[0] + parts[1]
 		}
-	}
-	if i, err := strconv.Atoi(s); err == nil {
-		return int(float64(i) * mult)
 	}
 	if f, err := strconv.ParseFloat(s, 64); err == nil {
 		return int(f * mult)
@@ -225,8 +223,8 @@ func cleanProfileDescription(desc string) string {
 		return ""
 	}
 	patterns := []string{
-		`(?i)^\s*[0-9][0-9.,]*\s*[km]?\s*followers?[\s,]+[0-9][0-9.,]*\s*[km]?\s*following[\s,]+[0-9][0-9.,]*\s*[km]?\s*posts?\s*[-–—:]?\s*`,
-		`(?i)^\s*[0-9][0-9.,]*\s*[km]?\s*followers?[\s,]+[0-9][0-9.,]*\s*[km]?\s*following[\s,]*`,
+		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,]+followers?[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+following[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+posts?\s*[-–—:]?\s*`,
+		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,]+followers?[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+following[\s,]*`,
 		`(?i)\s*See .*?profile.*$`,
 	}
 	for _, pattern := range patterns {
@@ -239,7 +237,7 @@ func cleanProfileDescription(desc string) string {
 func parseProfileCounts(text string) (followers, following, posts int) {
 	followers = countNearLabels(text, "followers", "seguidores")
 	following = countNearLabels(text, "following", "siguiendo")
-	posts = countNearLabels(text, "posts", "publicaciones", "posts")
+	posts = countNearLabels(text, "posts", "publicaciones")
 	return
 }
 
