@@ -142,8 +142,33 @@ func countNearLabels(s string, labels ...string) int {
 	for _, label := range labels {
 		label = regexp.QuoteMeta(strings.ToLower(label))
 		patterns := []string{
-			fmt.Sprintf(`(?i)%s[^0-9]{0,20}(%s)`, label, reCountLoose.String()),
-			fmt.Sprintf(`(?i)(%s)[^a-z0-9]{0,20}%s`, reCountLoose.String(), label),
+			fmt.Sprintf(`(?i)(%s)\s*[^a-z0-9]{0,12}%s`, reCountLoose.String(), label),
+			fmt.Sprintf(`(?i)%s\s*[^0-9]{0,12}(%s)`, label, reCountLoose.String()),
+		}
+		for _, pattern := range patterns {
+			re := regexp.MustCompile(pattern)
+			if m := re.FindStringSubmatch(cleaned); len(m) > 1 {
+				return parseCountLoose(m[1])
+			}
+		}
+	}
+	return 0
+}
+
+func parseProfileCounts(text string) (followers, following, posts int) {
+	followers = countLabelFirst(text, "followers", "seguidores")
+	following = countLabelFirst(text, "following", "siguiendo")
+	posts = countLabelFirst(text, "posts", "publicaciones")
+	return
+}
+
+func countLabelFirst(text string, labels ...string) int {
+	cleaned := collapseWhitespace(strings.ToLower(text))
+	for _, label := range labels {
+		label = regexp.QuoteMeta(strings.ToLower(label))
+		patterns := []string{
+			fmt.Sprintf(`(?i)([0-9][0-9.,]*\s*[km]?)\s*%s\b`, label),
+			fmt.Sprintf(`(?i)%s\b[^0-9]{0,16}([0-9][0-9.,]*\s*[km]?)`, label),
 		}
 		for _, pattern := range patterns {
 			re := regexp.MustCompile(pattern)
@@ -256,13 +281,6 @@ func cleanProfileDescription(desc string) string {
 		desc = re.ReplaceAllString(desc, "")
 	}
 	return collapseWhitespace(desc)
-}
-
-func parseProfileCounts(text string) (followers, following, posts int) {
-	followers = countNearLabels(text, "followers", "seguidores")
-	following = countNearLabels(text, "following", "siguiendo")
-	posts = countNearLabels(text, "posts", "publicaciones")
-	return
 }
 
 func parsePostCandidate(block string, username string, fallbackIndex int) (tweetCandidate, bool) {
