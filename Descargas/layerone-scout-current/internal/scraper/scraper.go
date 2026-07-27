@@ -84,7 +84,8 @@ func FetchInstagramProfile(ctx context.Context, username string, client *http.Cl
 			Replies:   edge.Node.Comments.Count,
 			CreatedAt: t,
 		}
-		p.AddPost(post)
+		post.Hashtags, post.Mentions = extractMetadata(post.Text)
+		p.Posts = append(p.Posts, post)
 	}
 	p.RawPostsCount = len(p.Posts)
 	p.LastFetched = time.Now()
@@ -169,7 +170,8 @@ func FetchXProfile(ctx context.Context, username string, client *http.Client) (m
 			Reposts:   reposts,
 			CreatedAt: time.Now().Add(-time.Duration(i) * time.Hour),
 		}
-		p.AddPost(post)
+		post.Hashtags, post.Mentions = extractMetadata(post.Text)
+		p.Posts = append(p.Posts, post)
 	}
 	p.RawPostsCount = len(p.Posts)
 	p.LastFetched = time.Now()
@@ -188,7 +190,8 @@ func fallbackXProfile(username string) model.Person {
 			Reposts:   2 + i,
 			CreatedAt: time.Now().Add(-time.Duration(i*2) * time.Hour),
 		}
-		p.AddPost(post)
+		post.Hashtags, post.Mentions = extractMetadata(post.Text)
+		p.Posts = append(p.Posts, post)
 	}
 	p.RawPostsCount = len(p.Posts)
 	p.LastFetched = time.Now()
