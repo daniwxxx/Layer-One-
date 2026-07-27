@@ -346,6 +346,11 @@ func generateReport(p model.Person) string {
 	fmt.Fprintf(&b, "- Hashtags/post: %.2f | Menciones/post: %.2f | Links/post: %.2f\n", p.Signals.HashtagRate, p.Signals.MentionRate, p.Signals.LinkRate)
 	fmt.Fprintf(&b, "- Longitud media de posts: %.2f tokens\n", p.Signals.AvgPostLength)
 	fmt.Fprintf(&b, "- Ventana activa: %.2f días | Posts/día activa: %.2f\n", p.Signals.ActiveSpanDays, p.Signals.PostsPerActiveDay)
+	fmt.Fprintf(&b, "- Sentence count: %d\n", p.Signals.SentenceCount)
+	fmt.Fprintf(&b, "- Media rate: %.2f | Repost rate: %.2f | Reply rate: %.2f\n", p.Signals.MediaRate, p.Signals.RepostRate, p.Signals.ReplyRate)
+	fmt.Fprintf(&b, "- First-person rate: %.2f | Second-person rate: %.2f\n", p.Signals.FirstPersonRate, p.Signals.SecondPersonRate)
+	fmt.Fprintf(&b, "- Call-to-action rate: %.2f\n", p.Signals.CallToActionRate)
+	fmt.Fprintf(&b, "- Temporal entropy: %.2f | Repetition score: %.2f\n", p.Signals.TemporalEntropy, p.Signals.RepetitionScore)
 
 	fmt.Fprintf(&b, "\n## Métricas de actividad\n\n")
 	fmt.Fprintf(&b, "- Engagement medio: %.2f (likes+reposts por post)\n", p.Signals.Engagement)
