@@ -136,7 +136,7 @@ func parseInstagramHTML(html, username string) (model.Person, bool) {
 	metaTitle := metaContent(html, "og:title")
 	name := profileDisplayNameFromTitleOrMeta(metaTitle, title)
 	rawDesc := firstNonEmpty(metaContent(html, "og:description"), metaContent(html, "description"), metaContent(html, "twitter:description"))
-	followers, following, _ := parseProfileCounts(rawDesc)
+	followers, following, _ := parseProfileCountsSmart(firstNonEmpty(rawDesc, title))
 	desc := cleanProfileDescription(rawDesc)
 
 	if name == "" && desc == "" && followers == 0 && following == 0 {
