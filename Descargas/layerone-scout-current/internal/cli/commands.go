@@ -279,7 +279,7 @@ func handleDoctor(store storage.Store) {
 }
 
 func printGlobalHelp() {
-	fmt.Println(`LayerOne Scout - Modo de uso:
+	fmt.Print(`LayerOne Scout - Modo de uso:
   scout <comando> [opciones]
 
 Comandos:
