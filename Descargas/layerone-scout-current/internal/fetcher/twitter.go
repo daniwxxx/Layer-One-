@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"layerone-scout/internal/model"
-	"layerone-scout/pkg/utils"
 )
 
 type TwitterFetcher struct {
@@ -62,7 +60,7 @@ func (f *TwitterFetcher) Fetch(ctx context.Context, username string) (model.Pers
 		html := string(body)
 		title := firstNonEmpty(metaContent(html, "twitter:title"), metaContent(html, "og:title"), titleText(html))
 		desc := cleanProfileDescription(firstNonEmpty(metaContent(html, "twitter:description"), metaContent(html, "og:description"), metaContent(html, "description")))
-		displayName := profileDisplayNameFromTitleOrMeta(title, title)
+		displayName := profileDisplayNameFromTitleOrMeta(metaContent(html, "twitter:title"), title)
 		if displayName == "" {
 			displayName = username
 		}
