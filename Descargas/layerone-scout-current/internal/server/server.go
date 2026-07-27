@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"layerone-scout/internal/app"
@@ -33,6 +35,7 @@ func Run(cfg config.Config, app *app.App) error {
 		WriteTimeout: parseDuration(cfg.Server.WriteTimeout, 10*time.Second),
 		IdleTimeout:  parseDuration(cfg.Server.IdleTimeout, 30*time.Second),
 	}
+
 	mux := http.NewServeMux()
 	rl := newRateLimiter(opts.RateLimit)
 	handler := withLogging(withRateLimit(rl, withAuth(opts.Token, mux)))
@@ -65,12 +68,12 @@ func Run(cfg config.Config, app *app.App) error {
 			writeJSON(w, list)
 		case http.MethodPost:
 			var in struct {
-				Name       string `json:"name"`
-				Username   string `json:"username"`
-				Platform   string `json:"platform"`
-				Bio        string `json:"bio"`
-				Followers  int    `json:"followers"`
-				Following  int    `json:"following"`
+				Name      string `json:"name"`
+				Username  string `json:"username"`
+				Platform  string `json:"platform"`
+				Bio       string `json:"bio"`
+				Followers int    `json:"followers"`
+				Following int    `json:"following"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 				httpError(w, fmt.Errorf("body inválido"), http.StatusBadRequest)
@@ -82,6 +85,18 @@ func Run(cfg config.Config, app *app.App) error {
 				return
 			}
 			writeJSON(w, p)
+		case http.MethodDelete:
+			personID := r.URL.Query().Get("person")
+			if strings.TrimSpace(personID) == "" {
+				http.Error(w, "falta person", http.StatusBadRequest)
+				return
+			}
+			deleted, err := app.DeletePerson(personID)
+			if err != nil {
+				httpError(w, err, http.StatusNotFound)
+				return
+			}
+			writeJSON(w, deleted)
 		default:
 			http.Error(w, "método no soportado", http.StatusMethodNotAllowed)
 		}
@@ -130,7 +145,7 @@ func Run(cfg config.Config, app *app.App) error {
 
 	mux.HandleFunc("/api/persons/report", func(w http.ResponseWriter, r *http.Request) {
 		personID := r.URL.Query().Get("person")
-		if personID == "" {
+		if strings.TrimSpace(personID) == "" {
 			http.Error(w, "falta person", http.StatusBadRequest)
 			return
 		}
@@ -144,18 +159,33 @@ func Run(cfg config.Config, app *app.App) error {
 	})
 
 	srv := &http.Server{
-		Addr:         opts.Addr,
-		Handler:      handler,
-		ReadTimeout:  opts.ReadTimeout,
-		WriteTimeout: opts.WriteTimeout,
-		IdleTimeout:  opts.IdleTimeout,
+		Addr:              opts.Addr,
+		Handler:           handler,
+		ReadTimeout:       opts.ReadTimeout,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      opts.WriteTimeout,
+		IdleTimeout:       opts.IdleTimeout,
 	}
-	fmt.Printf("Servidor escuchando en %s
-", opts.Addr)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	fmt.Printf("Servidor escuchando en %s\n", opts.Addr)
 	if opts.Token == "" {
 		fmt.Println("⚠️  Advertencia: API sin autenticación (token vacío)")
 	}
-	return srv.ListenAndServe()
+
+	err := srv.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
 }
 
 func dashboard(w http.ResponseWriter, r *http.Request) {
@@ -200,11 +230,9 @@ func withRateLimit(rl *rateLimiter, next http.Handler) http.Handler {
 func withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		fmt.Printf("[%s] %s %s %s
-", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.Path, r.RemoteAddr)
+		fmt.Printf("[%s] %s %s %s\n", time.Now().Format("2006-01-02 15:04:05"), r.Method, r.URL.Path, r.RemoteAddr)
 		next.ServeHTTP(w, r)
-		fmt.Printf("[%s] completado en %v
-", time.Now().Format("2006-01-02 15:04:05"), time.Since(start))
+		fmt.Printf("[%s] completado en %v\n", time.Now().Format("2006-01-02 15:04:05"), time.Since(start))
 	})
 }
 
@@ -261,6 +289,7 @@ type rateLimiter struct {
 	buckets map[string]*bucket
 	perMin  float64
 }
+
 type bucket struct {
 	tokens float64
 	last   time.Time
@@ -272,6 +301,7 @@ func newRateLimiter(perMinute int) *rateLimiter {
 	}
 	return &rateLimiter{buckets: map[string]*bucket{}, perMin: float64(perMinute)}
 }
+
 func (rl *rateLimiter) allow(key string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -303,6 +333,7 @@ const dashboardHTML = `<!doctype html>
 <ul>
 <li><code>GET /api/persons</code> - listar perfiles (con paginación: ?page=1&size=10)</li>
 <li><code>POST /api/persons</code> - crear perfil manual</li>
+<li><code>DELETE /api/persons?person=id</code> - eliminar perfil</li>
 <li><code>POST /api/persons/fetch</code> - obtener perfil público (body: {"platform":"instagram","username":"..."})</li>
 <li><code>POST /api/persons/analyze</code> - analizar perfil (body: {"person":"id"})</li>
 <li><code>GET /api/persons/report?person=id</code> - obtener informe en texto</li>
