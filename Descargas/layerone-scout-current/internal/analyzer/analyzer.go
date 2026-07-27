@@ -18,7 +18,7 @@ func AnalyzePerson(p model.Person) model.Person {
 
 	metrics, _ := AnalyzeCorpus(texts)
 	scores, conf := ComputeBigFive(texts)
-	behavior := AnalyzeBehavior(p.Posts, texts)
+	behavior := AnalyzeBehaviorPlus(p.Posts, texts)
 	s := model.Signals{
 		Openness:              scores["openness"],
 		Conscientiousness:     scores["conscientiousness"],
@@ -30,7 +30,7 @@ func AnalyzePerson(p model.Person) model.Person {
 		ExtraversionConf:      conf["extraversion"],
 		AgreeablenessConf:     conf["agreeableness"],
 		NeuroticismConf:       conf["neuroticism"],
-		Sentiment:             AnalyzeSentiment(texts),
+		Sentiment:             AnalyzeSentimentPlus(texts),
 		TokenCount:            metrics.TokenCount,
 		UniqueTokenCount:      metrics.UniqueTokenCount,
 		LexicalDiversity:      metrics.LexicalDiversity,
@@ -48,6 +48,15 @@ func AnalyzePerson(p model.Person) model.Person {
 		AvgPostLength:         behavior.AvgPostLength,
 		ActiveSpanDays:        behavior.ActiveSpanDays,
 		PostsPerActiveDay:     behavior.PostsPerActiveDay,
+		SentenceCount:         behavior.SentenceCount,
+		MediaRate:             behavior.MediaRate,
+		RepostRate:            behavior.RepostRate,
+		ReplyRate:             behavior.ReplyRate,
+		FirstPersonRate:       behavior.FirstPersonRate,
+		SecondPersonRate:      behavior.SecondPersonRate,
+		CallToActionRate:      behavior.CallToActionRate,
+		TemporalEntropy:       behavior.TemporalEntropy,
+		RepetitionScore:       behavior.RepetitionScore,
 	}
 
 	interests, interestConf := ExtractInterests(texts)
@@ -87,7 +96,7 @@ func AnalyzePerson(p model.Person) model.Person {
 	}
 
 	p.Signals = s
-	primary, _, confProf := ClassifyProfile(s)
+	primary, _, confProf := ClassifyProfilePlus(s)
 	p.Profile = primary
 	p.Confidence = confProf
 	p.Signals.Evidence = extractEvidence(texts)
