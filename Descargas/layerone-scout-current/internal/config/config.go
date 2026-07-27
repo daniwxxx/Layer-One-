@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"layerone-scout/internal/fetcher"
 )
 
 type Config struct {
@@ -91,13 +93,13 @@ func Load(path string, flags map[string]string) (Config, error) {
 	}
 	// Env overrides
 	envMap := map[string]string{
-		"SCOUT_ADDR":         "server.addr",
-		"SCOUT_TOKEN":        "server.token",
-		"SCOUT_RATE_LIMIT":   "server.rate_limit",
-		"SCOUT_DB_PATH":      "storage.path",
-		"SCOUT_LOG_LEVEL":    "log.level",
-		"SCOUT_USER_AGENT":   "fetcher.user_agent",
-		"SCOUT_TIMEOUT":      "fetcher.timeout",
+		"SCOUT_ADDR":       "server.addr",
+		"SCOUT_TOKEN":      "server.token",
+		"SCOUT_RATE_LIMIT": "server.rate_limit",
+		"SCOUT_DB_PATH":    "storage.path",
+		"SCOUT_LOG_LEVEL":  "log.level",
+		"SCOUT_USER_AGENT": "fetcher.user_agent",
+		"SCOUT_TIMEOUT":    "fetcher.timeout",
 	}
 	for env, field := range envMap {
 		if val := os.Getenv(env); val != "" {
@@ -115,6 +117,25 @@ func Load(path string, flags map[string]string) (Config, error) {
 		return cfg, err
 	}
 	return cfg, nil
+}
+
+func (c Config) FetcherRuntime() fetcher.Config {
+	return fetcher.Config{
+		Timeout:      parseDuration(c.Fetcher.Timeout, 15*time.Second),
+		UserAgent:    c.Fetcher.UserAgent,
+		MaxRetries:   c.Fetcher.MaxRetries,
+		BackoffBase:  parseDuration(c.Fetcher.BackoffBase, 2*time.Second),
+		Jitter:       500 * time.Millisecond,
+		MaxBodyBytes: c.Fetcher.MaxBodyBytes,
+	}
+}
+
+func parseDuration(s string, def time.Duration) time.Duration {
+	d, err := time.ParseDuration(strings.TrimSpace(s))
+	if err != nil {
+		return def
+	}
+	return d
 }
 
 func setField(cfg *Config, field, val string) error {
@@ -166,8 +187,7 @@ func setField(cfg *Config, field, val string) error {
 	case "fetcher":
 		switch parts[1] {
 		case "timeout":
-			_, err := time.ParseDuration(val)
-			if err != nil {
+			if _, err := time.ParseDuration(val); err != nil {
 				return err
 			}
 			cfg.Fetcher.Timeout = val
@@ -180,8 +200,7 @@ func setField(cfg *Config, field, val string) error {
 			}
 			cfg.Fetcher.MaxRetries = n
 		case "backoff_base":
-			_, err := time.ParseDuration(val)
-			if err != nil {
+			if _, err := time.ParseDuration(val); err != nil {
 				return err
 			}
 			cfg.Fetcher.BackoffBase = val
