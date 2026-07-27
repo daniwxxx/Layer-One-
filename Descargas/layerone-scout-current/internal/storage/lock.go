@@ -1,32 +1,50 @@
 package storage
 
 import (
+	"fmt"
 	"os"
-	"syscall"
+	"time"
 )
 
 type fileLock struct {
-	file *os.File
 	path string
 }
 
+const (
+	lockRetryInterval = 50 * time.Millisecond
+	lockTimeout       = 5 * time.Second
+	lockStaleAfter    = 30 * time.Second
+)
+
 func acquireFileLock(dbPath string) (*fileLock, error) {
 	lockPath := dbPath + ".lock"
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, err
+	deadline := time.Now().Add(lockTimeout)
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err == nil {
+			_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
+			_ = f.Close()
+			return &fileLock{path: lockPath}, nil
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+		if info, statErr := os.Stat(lockPath); statErr == nil {
+			if time.Since(info.ModTime()) > lockStaleAfter {
+				_ = os.Remove(lockPath)
+				continue
+			}
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("no se pudo tomar el lock de %s", dbPath)
+		}
+		time.Sleep(lockRetryInterval)
 	}
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
-		f.Close()
-		return nil, err
-	}
-	return &fileLock{file: f, path: lockPath}, nil
 }
 
 func (l *fileLock) release() {
-	if l.file != nil {
-		syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
-		l.file.Close()
+	if l == nil {
+		return
 	}
-	os.Remove(l.path)
+	_ = os.Remove(l.path)
 }
