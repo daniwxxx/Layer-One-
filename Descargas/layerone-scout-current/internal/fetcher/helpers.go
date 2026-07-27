@@ -9,18 +9,18 @@ import (
 )
 
 var (
-	reWhitespace      = regexp.MustCompile(`\s+`)
-	reTitle           = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
-	reMeta1           = regexp.MustCompile(`(?is)<meta[^>]+(?:property|name)=["']([^"']+)["'][^>]*content=["']([^"']*)["'][^>]*>`)
-	reMeta2           = regexp.MustCompile(`(?is)<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']([^"']+)["'][^>]*>`)
-	reTweetArticle    = regexp.MustCompile(`(?is)<article[^>]*data-testid=["']tweet["'][^>]*>(.*?)</article>`)
-	reTweetDiv        = regexp.MustCompile(`(?is)<div[^>]*data-testid=["']tweet["'][^>]*>(.*?)</div>`)
-	reTweetTextBlock  = regexp.MustCompile(`(?is)data-testid=["']tweetText["'][^>]*>(.*?)</div>`)
-	reTime            = regexp.MustCompile(`(?i)<time[^>]*datetime=["']([^"']+)["']`)
-	reHashtag         = regexp.MustCompile(`(?i)(?:^|\s)#([\p{L}\p{N}_]+)`)
-	reMention         = regexp.MustCompile(`(?i)(?:^|\s)@([\p{L}\p{N}_]+)`)
-	reURL             = regexp.MustCompile(`(?i)https?://[^\s<>"]+`)
-	reCountLoose      = regexp.MustCompile(`([0-9][0-9.,]*\s*[km]?)`)
+	reWhitespace     = regexp.MustCompile(`\s+`)
+	reTitle          = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	reMeta1          = regexp.MustCompile(`(?is)<meta[^>]+(?:property|name)=["']([^"']+)["'][^>]*content=["']([^"']*)["'][^>]*>`)
+	reMeta2          = regexp.MustCompile(`(?is)<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']([^"']+)["'][^>]*>`)
+	reTweetArticle   = regexp.MustCompile(`(?is)<article[^>]*data-testid=["']tweet["'][^>]*>(.*?)</article>`)
+	reTweetDiv       = regexp.MustCompile(`(?is)<div[^>]*data-testid=["']tweet["'][^>]*>(.*?)</div>`)
+	reTweetTextBlock = regexp.MustCompile(`(?is)data-testid=["']tweetText["'][^>]*>(.*?)</div>`)
+	reTime           = regexp.MustCompile(`(?i)<time[^>]*datetime=["']([^"']+)["']`)
+	reHashtag        = regexp.MustCompile(`(?i)(?:^|\s)#([\p{L}\p{N}_]+)`)
+	reMention        = regexp.MustCompile(`(?i)(?:^|\s)@([\p{L}\p{N}_]+)`)
+	reURL            = regexp.MustCompile(`(?i)https?://[^\s<>"]+`)
+	reCountLoose     = regexp.MustCompile(`([0-9][0-9.,]*\s*[km]?)`)
 )
 
 func collapseWhitespace(s string) string {
@@ -103,32 +103,47 @@ func tweetCreatedAtFromBlock(block string) time.Time {
 }
 
 func tweetCountsFromBlock(block string) (likes, reposts, replies int) {
-	plain := collapseWhitespace(stripTags(block))
-	likes = countNearLabels(plain, "like", "likes", "me gusta", "favs")
-	reposts = countNearLabels(plain, "repost", "reposts", "retweet", "retweets", "rt")
-	replies = countNearLabels(plain, "reply", "replies", "respuesta", "respuestas")
-	if likes == 0 {
-		likes = countNearLabels(block, "like", "likes", "me gusta", "favs")
-	}
-	if reposts == 0 {
-		reposts = countNearLabels(block, "repost", "reposts", "retweet", "retweets", "rt")
-	}
-	if replies == 0 {
-		replies = countNearLabels(block, "reply", "replies", "respuesta", "respuestas")
+	candidates := append([]string{}, attributeValues(block, "aria-label", "title", "data-label")...)
+	candidates = append(candidates, collapseWhitespace(stripTags(block)))
+	for _, candidate := range candidates {
+		if likes == 0 {
+			likes = countNearLabels(candidate, "like", "likes", "me gusta", "favs")
+		}
+		if reposts == 0 {
+			reposts = countNearLabels(candidate, "repost", "reposts", "retweet", "retweets", "rt")
+		}
+		if replies == 0 {
+			replies = countNearLabels(candidate, "reply", "replies", "respuesta", "respuestas")
+		}
 	}
 	return
 }
 
+func attributeValues(block string, attrs ...string) []string {
+	vals := make([]string, 0, len(attrs))
+	for _, attr := range attrs {
+		pattern := fmt.Sprintf(`(?i)%s\s*=\s*(["'])(.*?)\1`, regexp.QuoteMeta(attr))
+		re := regexp.MustCompile(pattern)
+		for _, m := range re.FindAllStringSubmatch(block, -1) {
+			if len(m) > 2 {
+				vals = append(vals, collapseWhitespace(m[2]))
+			}
+		}
+	}
+	return uniqueStrings(vals)
+}
+
 func countNearLabels(s string, labels ...string) int {
+	cleaned := collapseWhitespace(strings.ToLower(s))
 	for _, label := range labels {
-		label = regexp.QuoteMeta(label)
+		label = regexp.QuoteMeta(strings.ToLower(label))
 		patterns := []string{
-			fmt.Sprintf(`(?i)(%s)\s*[:\-]?\s*%s`, label, reCountLoose.String()),
-			fmt.Sprintf(`(?i)%s\s*[:\-]?\s*(%s)`, label, reCountLoose.String()),
+			fmt.Sprintf(`(?i)%s[^0-9]{0,20}(%s)`, label, reCountLoose.String()),
+			fmt.Sprintf(`(?i)(%s)[^a-z0-9]{0,20}%s`, reCountLoose.String(), label),
 		}
 		for _, pattern := range patterns {
 			re := regexp.MustCompile(pattern)
-			if m := re.FindStringSubmatch(s); len(m) > 1 {
+			if m := re.FindStringSubmatch(cleaned); len(m) > 1 {
 				return parseCountLoose(m[1])
 			}
 		}
@@ -150,7 +165,11 @@ func parseCountLoose(s string) int {
 		s = strings.TrimSuffix(s, "m")
 	}
 	s = strings.ReplaceAll(s, " ", "")
-	s = strings.ReplaceAll(s, ",", ".")
+	if strings.Contains(s, ",") && !strings.Contains(s, ".") {
+		s = strings.ReplaceAll(s, ",", "")
+	} else {
+		s = strings.ReplaceAll(s, ",", ".")
+	}
 	if strings.Count(s, ".") == 1 {
 		parts := strings.SplitN(s, ".", 2)
 		if len(parts[1]) == 3 {
@@ -223,8 +242,9 @@ func cleanProfileDescription(desc string) string {
 		return ""
 	}
 	patterns := []string{
-		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,]+followers?[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+following[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+posts?\s*[-–—:]?\s*`,
-		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,]+followers?[\s,]+[0-9][0-9.,]*\s*[km]?[\s,]+following[\s,]*`,
+		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,·•|-]+followers?[\s,·•|-]+[0-9][0-9.,]*\s*[km]?[\s,·•|-]+following[\s,·•|-]+[0-9][0-9.,]*\s*[km]?[\s,·•|-]+posts?.*$`,
+		`(?i)^\s*[0-9][0-9.,]*\s*[km]?[\s,·•|-]+followers?[\s,·•|-]+[0-9][0-9.,]*\s*[km]?[\s,·•|-]+following.*$`,
+		`(?i)\s*See the latest conversations with @[^\s]+.*$`,
 		`(?i)\s*See .*?profile.*$`,
 	}
 	for _, pattern := range patterns {
