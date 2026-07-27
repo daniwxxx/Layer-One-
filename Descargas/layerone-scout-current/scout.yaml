@@ -1,26 +1,89 @@
+# LayerOne Scout v3.0 – Comportamiento humano + Psicografía
+# Todo dinámico, sin nada estático ni simulado
+
 app:
   name: "LayerOne Scout"
-  version: "1.0.0"
+  version: "3.0.0"
+
+behavioral:
+  model:
+    type: "transformer-mcmc-kmeans-kalman"
+    embeddings_model: "sentence-transformer-all-MiniLM-L6-v2"
+    pca_components: 32
+    lda_topics: 12
+    hmm_states: 8
+    num_clusters: 5
+    learning_rate: 0.001
+    epochs_fine_tune: 5
+    uncertainty_dropout: 0.3
+
+traits:
+  observable:
+    - posting_frequency
+    - reply_rate
+    - mention_density
+    - emoji_ratio
+    - url_ratio
+    - mention_frequency
+    - hashtag_frequency
+    - weekday_pattern
+    - hour_pattern
+    - timezone
+    - network_size
+    - mutual_friends_ratio
+    - follower_growth_rate
+    - verification_status
+    - bio_sentiment
+    - link_quality_score
+    - tfidf_top_words
+    - bigfive_raw
+    - interests_clusters
+  hidden:
+    - intelligence_score
+    - emotional_stability_index
+    - risk_tolerance_index
+    - social_power_index
+    - cultural_alignment_score
+    - causal_influence_score
+    - q_learning_value
+    - hmm_latent_state
+    - kurtosis_outlier_score
+
+database:
+  driver: "postgres"
+  host: "${DB_HOST}"
+  port: 5432
+  name: "layerone_scout_v3"
+  max_connections: 1000
+  query_timeout: "30s"
+  cache_ttl: "7d"
 
 server:
   addr: ":8787"
-  token: ""                       # Dejar vacío para sin autenticación
-  rate_limit: 120                 # requests por minuto por IP
+  token: "${LAYERONE_TOKEN}"
+  rate_limit: 180
   read_timeout: "10s"
   write_timeout: "10s"
   idle_timeout: "30s"
+  cache_dir: "/tmp/layerone_cache_v3"
 
 fetcher:
   timeout: "15s"
   user_agent: "LayerOneScout/1.0 (+analytics; public-profile-scraper)"
   max_retries: 3
   backoff_base: "2s"
-  max_body_bytes: 1048576         # 1MB
+  max_body_bytes: 1048576
 
 storage:
   path: "profiles.json"
   backup_dir: "backups"
 
+math:
+  mcmc_samples: 10000
+  kalman_filters: true
+  causal_graph: true
+  neural_finetune: true
+
 log:
-  level: "info"                   # debug, info, warn, error
-  format: "text"                  # text o json
+  level: "info"
+  format: "text"
