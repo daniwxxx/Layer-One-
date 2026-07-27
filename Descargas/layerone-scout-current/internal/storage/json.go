@@ -2,12 +2,13 @@ package storage
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"layerone-scout/internal/model"
 )
 
 const currentSchemaVersion = 1
