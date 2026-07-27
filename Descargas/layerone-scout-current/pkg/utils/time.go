@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,10 @@ func ParseAbbreviated(s string) int {
 }
 
 func ParseTimeRFC3339(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("fecha vacía")
+	}
 	layouts := []string{
 		time.RFC3339,
 		"2006-01-02T15:04:05Z",
@@ -40,5 +45,5 @@ func ParseTimeRFC3339(s string) (time.Time, error) {
 			return t, nil
 		}
 	}
-	return time.Time{}, nil
+	return time.Time{}, fmt.Errorf("no se pudo parsear la fecha: %q", s)
 }
