@@ -60,7 +60,7 @@ func (f *TwitterFetcher) Fetch(ctx context.Context, username string) (model.Pers
 		html := string(body)
 		title := firstNonEmpty(metaContent(html, "twitter:title"), metaContent(html, "og:title"), titleText(html))
 		rawDesc := firstNonEmpty(metaContent(html, "twitter:description"), metaContent(html, "og:description"), metaContent(html, "description"))
-		followers, following, _ := parseProfileCounts(rawDesc)
+		followers, following, _ := parseProfileCountsSmart(firstNonEmpty(rawDesc, title))
 		desc := cleanProfileDescription(rawDesc)
 		displayName := profileDisplayNameFromTitleOrMeta(metaContent(html, "twitter:title"), title)
 		if displayName == "" {
