@@ -279,9 +279,7 @@ func printPersonFull(p model.Person) {
 	if strings.TrimSpace(p.SourceURL) != "" {
 		fmt.Printf("Origen: %s\n", p.SourceURL)
 	}
-	if strings.TrimSpace(p.Bio) != "" {
-		fmt.Printf("Bio: %s\n", p.Bio)
-	}
+	fmt.Printf("Bio: %s\n", bioOrFallback(p.Bio))
 	fmt.Printf("Seguidores: %d | Siguiendo: %d\n", p.Followers, p.Following)
 	fmt.Printf("Posts: %d | Raw posts: %d\n", len(p.Posts), p.RawPostsCount)
 	fmt.Printf("Creado: %s\n", p.CreatedAt.Format("2006-01-02 15:04"))
@@ -297,6 +295,9 @@ func printPersonFull(p model.Person) {
 	fmt.Printf("Amabilidad: %.2f (conf %.2f)\n", p.Signals.Agreeableness, p.Signals.AgreeablenessConf)
 	fmt.Printf("Neuroticismo: %.2f (conf %.2f)\n", p.Signals.Neuroticism, p.Signals.NeuroticismConf)
 	fmt.Printf("Sentiment: %.2f\n", p.Signals.Sentiment)
+	fmt.Printf("Tokens: %d | Únicos: %d | Diversidad: %.2f\n", p.Signals.TokenCount, p.Signals.UniqueTokenCount, p.Signals.LexicalDiversity)
+	fmt.Printf("Shannon: %.2f (norm %.2f) | Zipf slope: %.2f | Zipf fit: %.2f\n", p.Signals.ShannonEntropy, p.Signals.ShannonNormalized, p.Signals.ZipfSlope, p.Signals.ZipfFit)
+	fmt.Printf("Bayes confidence: %.2f\n", p.Signals.BayesConfidence)
 	fmt.Printf("Engagement medio: %.2f\n", p.Signals.Engagement)
 	fmt.Printf("Engagement mediana: %.2f\n", p.Signals.EngagementMedian)
 	fmt.Printf("Frecuencia de posts: %.2f posts/día\n", p.Signals.PostFrequency)
