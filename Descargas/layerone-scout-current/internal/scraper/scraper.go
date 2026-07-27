@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -113,9 +114,11 @@ func FetchXProfile(ctx context.Context, username string, client *http.Client) (m
 		return fallbackXProfile(username), nil
 	}
 
-	body := make([]byte, 500000)
-	n, _ := resp.Body.Read(body)
-	html := string(body[:n])
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 500000))
+	if err != nil {
+		return fallbackXProfile(username), nil
+	}
+	html := string(body)
 
 	name := regexp.MustCompile(`<title>([^<]*)<\/title>`).FindStringSubmatch(html)
 	var displayName string
