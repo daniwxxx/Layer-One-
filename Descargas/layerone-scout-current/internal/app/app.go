@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -43,7 +44,14 @@ func (a *App) ListPersons() ([]model.Person, error) {
 	if err != nil {
 		return nil, err
 	}
-	return db.Persons, nil
+	persons := append([]model.Person(nil), db.Persons...)
+	sort.SliceStable(persons, func(i, j int) bool {
+		if persons[i].UpdatedAt.Equal(persons[j].UpdatedAt) {
+			return strings.ToLower(persons[i].Name) < strings.ToLower(persons[j].Name)
+		}
+		return persons[i].UpdatedAt.After(persons[j].UpdatedAt)
+	})
+	return persons, nil
 }
 
 func (a *App) GetPerson(key string) (model.Person, error) {
@@ -58,12 +66,29 @@ func (a *App) GetPerson(key string) (model.Person, error) {
 	return db.Persons[idx], nil
 }
 
+func (a *App) DeletePerson(key string) (model.Person, error) {
+	var deleted model.Person
+	_, err := a.store.Mutate(func(db *storage.Database) error {
+		idx := findPersonIndex(db.Persons, key)
+		if idx < 0 {
+			return ErrNotFound
+		}
+		deleted = db.Persons[idx]
+		db.Persons = append(db.Persons[:idx], db.Persons[idx+1:]...)
+		return nil
+	})
+	return deleted, err
+}
+
 func (a *App) FetchAndAddProfile(ctx context.Context, platform, username string) (model.Person, error) {
 	p, err := fetcher.FetchByPlatform(ctx, platform, username)
 	if err != nil {
 		return model.Person{}, err
 	}
-	db, _ := a.store.Load()
+	db, err := a.store.Load()
+	if err != nil {
+		return model.Person{}, err
+	}
 	idx := findPersonBySource(db.Persons, p.SourceID, p.Username, p.Platform)
 	if idx >= 0 {
 		updated := db.Persons[idx]
@@ -81,11 +106,13 @@ func (a *App) FetchAndAddProfile(ctx context.Context, platform, username string)
 		updated.Bio = p.Bio
 		updated.Name = p.Name
 		updated.Username = p.Username
+		updated.Platform = p.Platform
 		updated.SourceURL = p.SourceURL
 		updated.SourceID = p.SourceID
 		updated.RawPostsCount = len(updated.Posts)
-		updated.LastFetched = time.Now()
+		updated.LastFetched = p.LastFetched
 		updated = analyzer.AnalyzePerson(updated)
+		updated.UpdatedAt = time.Now()
 		_, err := a.store.Mutate(func(db *storage.Database) error {
 			db.Persons[idx] = updated
 			return nil
@@ -93,6 +120,7 @@ func (a *App) FetchAndAddProfile(ctx context.Context, platform, username string)
 		return updated, err
 	}
 	p = analyzer.AnalyzePerson(p)
+	p.UpdatedAt = time.Now()
 	_, err = a.store.Mutate(func(db *storage.Database) error {
 		db.Persons = append(db.Persons, p)
 		return nil
@@ -109,6 +137,7 @@ func (a *App) AnalyzePerson(key string) (model.Person, error) {
 		}
 		p := db.Persons[idx]
 		p = analyzer.AnalyzePerson(p)
+		p.UpdatedAt = time.Now()
 		db.Persons[idx] = p
 		updated = p
 		return nil
@@ -129,10 +158,19 @@ func (a *App) FindPersonByName(name string) ([]model.Person, error) {
 	if err != nil {
 		return nil, err
 	}
-	name = strings.ToLower(strings.TrimSpace(name))
+	q := normalizeQuery(name)
 	var results []model.Person
 	for _, p := range db.Persons {
-		if strings.Contains(strings.ToLower(p.Name), name) || strings.Contains(strings.ToLower(p.Username), name) {
+		nameNorm := normalizeQuery(p.Name)
+		userNorm := normalizeQuery(p.Username)
+		if q == "" {
+			continue
+		}
+		if strings.Contains(nameNorm, q) || strings.Contains(userNorm, q) || strings.Contains(q, nameNorm) || strings.Contains(q, userNorm) {
+			results = append(results, p)
+			continue
+		}
+		if utils.Levenshtein(nameNorm, q) <= 2 || utils.Levenshtein(userNorm, q) <= 2 {
 			results = append(results, p)
 		}
 	}
@@ -168,18 +206,21 @@ func (a *App) ImportCSV(r io.Reader) (int, error) {
 			if err != nil {
 				return err
 			}
-			username := get(row, "username")
+			username := strings.TrimSpace(get(row, "username"))
 			if username == "" {
 				continue
 			}
-			platform := get(row, "platform")
+			platform := strings.TrimSpace(get(row, "platform"))
 			if platform == "" {
 				platform = "unknown"
 			}
-			postText := get(row, "post_text")
+			postText := utils.Sanitize(get(row, "post_text"))
 			likes := utils.ParseAbbreviated(get(row, "likes"))
 			reposts := utils.ParseAbbreviated(get(row, "reposts"))
-			createdAt, _ := utils.ParseTimeRFC3339(get(row, "created_at"))
+			createdAt, err := utils.ParseTimeRFC3339(get(row, "created_at"))
+			if err != nil || createdAt.IsZero() {
+				createdAt = time.Now()
+			}
 
 			idx := findPersonByUsername(db.Persons, username, platform)
 			var p model.Person
@@ -210,20 +251,25 @@ func (a *App) ImportCSV(r io.Reader) (int, error) {
 }
 
 func findPersonIndex(persons []model.Person, key string) int {
-	key = strings.ToLower(strings.TrimSpace(key))
+	q := normalizeQuery(key)
 	for i, p := range persons {
-		if strings.ToLower(p.ID) == key || strings.ToLower(p.Name) == key || strings.ToLower(p.Username) == key {
+		if strings.EqualFold(strings.TrimSpace(p.ID), strings.TrimSpace(key)) || strings.EqualFold(strings.TrimSpace(p.Name), strings.TrimSpace(key)) || strings.EqualFold(strings.TrimSpace(p.Username), strings.TrimSpace(key)) {
 			return i
+		}
+		if q != "" {
+			if normalizeQuery(p.ID) == q || normalizeQuery(p.Name) == q || normalizeQuery(p.Username) == q {
+				return i
+			}
 		}
 	}
 	return -1
 }
 
 func findPersonByUsername(persons []model.Person, username, platform string) int {
-	username = strings.ToLower(username)
-	platform = strings.ToLower(platform)
+	username = strings.ToLower(strings.TrimSpace(username))
+	platform = strings.ToLower(strings.TrimSpace(platform))
 	for i, p := range persons {
-		if strings.ToLower(p.Username) == username && strings.ToLower(p.Platform) == platform {
+		if strings.ToLower(strings.TrimSpace(p.Username)) == username && strings.ToLower(strings.TrimSpace(p.Platform)) == platform {
 			return i
 		}
 	}
@@ -231,24 +277,28 @@ func findPersonByUsername(persons []model.Person, username, platform string) int
 }
 
 func findPersonBySource(persons []model.Person, sourceID, username, platform string) int {
-	sourceID = strings.ToLower(sourceID)
-	username = strings.ToLower(username)
-	platform = strings.ToLower(platform)
+	sourceID = strings.ToLower(strings.TrimSpace(sourceID))
+	username = strings.ToLower(strings.TrimSpace(username))
+	platform = strings.ToLower(strings.TrimSpace(platform))
 	for i, p := range persons {
-		if strings.ToLower(p.SourceID) == sourceID || (strings.ToLower(p.Username) == username && strings.ToLower(p.Platform) == platform) {
+		if strings.ToLower(strings.TrimSpace(p.SourceID)) == sourceID || (strings.ToLower(strings.TrimSpace(p.Username)) == username && strings.ToLower(strings.TrimSpace(p.Platform)) == platform) {
 			return i
 		}
 	}
 	return -1
 }
 
+func normalizeQuery(s string) string {
+	return strings.TrimSpace(strings.ToLower(utils.NormalizeText(s)))
+}
+
 func extractMetadata(text string) (hashtags, mentions []string) {
 	tokens := strings.Fields(text)
 	for _, t := range tokens {
 		if strings.HasPrefix(t, "#") && len(t) > 1 {
-			hashtags = append(hashtags, strings.ToLower(t[1:]))
+			hashtags = append(hashtags, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
 		} else if strings.HasPrefix(t, "@") && len(t) > 1 {
-			mentions = append(mentions, strings.ToLower(t[1:]))
+			mentions = append(mentions, strings.ToLower(strings.Trim(t[1:], ".,;:!?()[]{}\"'")))
 		}
 	}
 	return
@@ -256,88 +306,59 @@ func extractMetadata(text string) (hashtags, mentions []string) {
 
 func generateReport(p model.Person) string {
 	var b strings.Builder
-	b.WriteString("# Perfil Psicológico de " + p.Name + "
+	fmt.Fprintf(&b, "# Perfil Psicológico de %s\n\n", p.Name)
+	fmt.Fprintf(&b, "**Usuario:** %s (%s)\n", p.Username, p.Platform)
+	fmt.Fprintf(&b, "**Origen:** %s\n", firstNonEmpty(p.SourceURL, p.SourceID))
+	fmt.Fprintf(&b, "**Bio:** %s\n", p.Bio)
+	fmt.Fprintf(&b, "**Seguidores:** %d | **Siguiendo:** %d\n", p.Followers, p.Following)
+	fmt.Fprintf(&b, "**Creado:** %s\n", p.CreatedAt.Format("2006-01-02 15:04"))
+	fmt.Fprintf(&b, "**Última actualización:** %s\n\n", p.UpdatedAt.Format("2006-01-02 15:04"))
 
-")
-	b.WriteString("**Usuario:** " + p.Username + " (" + p.Platform + ")
-")
-	b.WriteString("**Bio:** " + p.Bio + "
-")
-	b.WriteString("**Seguidores:** " + strconv.Itoa(p.Followers) + " | **Siguiendo:** " + strconv.Itoa(p.Following) + "
-")
-	b.WriteString("**Última actualización:** " + p.UpdatedAt.Format("2006-01-02 15:04") + "
+	fmt.Fprintf(&b, "## Rasgos Big Five\n\n")
+	fmt.Fprintf(&b, "| Rasgo | Puntuación | Confianza |\n")
+	fmt.Fprintf(&b, "|-------|------------|-----------|\n")
+	fmt.Fprintf(&b, "| Apertura | %.2f | %.2f |\n", p.Signals.Openness, p.Signals.OpennessConf)
+	fmt.Fprintf(&b, "| Responsabilidad | %.2f | %.2f |\n", p.Signals.Conscientiousness, p.Signals.ConscientiousnessConf)
+	fmt.Fprintf(&b, "| Extraversión | %.2f | %.2f |\n", p.Signals.Extraversion, p.Signals.ExtraversionConf)
+	fmt.Fprintf(&b, "| Amabilidad | %.2f | %.2f |\n", p.Signals.Agreeableness, p.Signals.AgreeablenessConf)
+	fmt.Fprintf(&b, "| Neuroticismo | %.2f | %.2f |\n", p.Signals.Neuroticism, p.Signals.NeuroticismConf)
 
-")
-
-	b.WriteString("## Rasgos Big Five
-
-")
-	b.WriteString("| Rasgo | Puntuación | Confianza |
-")
-	b.WriteString("|-------|------------|-----------|
-")
-	fmt.Fprintf(&b, "| Apertura | %.2f | %.2f |
-", p.Signals.Openness, p.Signals.OpennessConf)
-	fmt.Fprintf(&b, "| Responsabilidad | %.2f | %.2f |
-", p.Signals.Conscientiousness, p.Signals.ConscientiousnessConf)
-	fmt.Fprintf(&b, "| Extraversión | %.2f | %.2f |
-", p.Signals.Extraversion, p.Signals.ExtraversionConf)
-	fmt.Fprintf(&b, "| Amabilidad | %.2f | %.2f |
-", p.Signals.Agreeableness, p.Signals.AgreeablenessConf)
-	fmt.Fprintf(&b, "| Neuroticismo | %.2f | %.2f |
-", p.Signals.Neuroticism, p.Signals.NeuroticismConf)
-
-	b.WriteString("
-## Intereses
-
-")
+	fmt.Fprintf(&b, "\n## Intereses\n\n")
 	if len(p.Signals.Interests) == 0 {
-		b.WriteString("No se detectaron intereses claros.
-")
+		fmt.Fprintf(&b, "No se detectaron intereses claros.\n")
 	} else {
 		for _, i := range p.Signals.Interests {
-			b.WriteString("- " + i + "
-")
+			fmt.Fprintf(&b, "- %s\n", i)
 		}
 	}
-	fmt.Fprintf(&b, "Confianza en intereses: %.2f
+	fmt.Fprintf(&b, "Confianza en intereses: %.2f\n\n", p.Signals.InterestConf)
 
-", p.Signals.InterestConf)
+	fmt.Fprintf(&b, "## Métricas de actividad\n\n")
+	fmt.Fprintf(&b, "- Engagement medio: %.2f (likes+reposts por post)\n", p.Signals.Engagement)
+	fmt.Fprintf(&b, "- Engagement mediana: %.2f\n", p.Signals.EngagementMedian)
+	fmt.Fprintf(&b, "- Frecuencia de posts: %.2f posts/día\n", p.Signals.PostFrequency)
+	fmt.Fprintf(&b, "- Total de posts: %d\n", len(p.Posts))
 
-	b.WriteString("## Métricas de actividad
-
-")
-	fmt.Fprintf(&b, "- Engagement medio: %.2f (likes+reposts por post)
-", p.Signals.Engagement)
-	fmt.Fprintf(&b, "- Engagement mediana: %.2f
-", p.Signals.EngagementMedian)
-	fmt.Fprintf(&b, "- Frecuencia de posts: %.2f posts/día
-", p.Signals.PostFrequency)
-	fmt.Fprintf(&b, "- Total de posts: %d
-", len(p.Posts))
-
-	b.WriteString("
-## Perfil psicológico
-
-")
-	b.WriteString("**Arquetipo principal:** " + string(p.Profile) + "
-")
-	b.WriteString("**Descripción:** " + p.Profile.Description() + "
-")
-	b.WriteString("**Confianza del perfil:** " + fmt.Sprintf("%.2f", p.Confidence) + "
-")
-	b.WriteString("**Sugerencia de comunicación:** " + p.Profile.CommunicationStyle() + "
-")
+	fmt.Fprintf(&b, "\n## Perfil psicológico\n\n")
+	fmt.Fprintf(&b, "**Arquetipo principal:** %s\n", p.Profile)
+	fmt.Fprintf(&b, "**Descripción:** %s\n", p.Profile.Description())
+	fmt.Fprintf(&b, "**Confianza del perfil:** %.2f\n", p.Confidence)
+	fmt.Fprintf(&b, "**Sugerencia de comunicación:** %s\n", p.Profile.CommunicationStyle())
 
 	if len(p.Signals.Evidence) > 0 {
-		b.WriteString("
-## Evidencia textual
-
-")
+		fmt.Fprintf(&b, "\n## Evidencia textual\n\n")
 		for _, e := range p.Signals.Evidence {
-			b.WriteString("- " + e + "
-")
+			fmt.Fprintf(&b, "- %s\n", e)
 		}
 	}
 	return b.String()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
